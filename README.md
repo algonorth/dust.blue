@@ -1,7 +1,7 @@
 # TEN BILLION YEARS
 ### The life of a star, compressed into one scroll.
 
-A single continuous WebGL scene — one particle universe of 130,000 grains that
+A single continuous WebGL scene. One particle universe of 130,000 grains that
 morphs through every age of a sun-like star as you scroll:
 
 molecular cloud → gravitational collapse → protostellar disk → **ignition** →
@@ -16,8 +16,7 @@ python dream-site/fable/serve.py
 
 Then open **http://localhost:4321**
 
-(Any Python 3 works. No build step, no dependencies, fully offline —
-Three.js and fonts are vendored.)
+(Any Python 3 works. No build step, no dependencies, fully offline. Three.js and fonts are vendored.)
 
 ## Notes for the curious
 
