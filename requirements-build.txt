@@ -1,0 +1,4 @@
+# Build-time only — never required to run or view the site itself.
+# pip install -r requirements-build.txt
+rcssmin
+rjsmin

@@ -13,7 +13,5 @@ Epilogue: A stellar clock ticks from T − 1,250,000 YR to T + 13 BILLION YR as 
 
 
 TODO:
-People hate em dashes. Remove them.
-Doesn't look right on mobile for some reason.
 Make it more cinematic with streaking particles during transitions that the camera follows for increased epicness? (Interest curve caution?)
 Minify css, js, html for production.

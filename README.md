@@ -8,13 +8,42 @@ molecular cloud → gravitational collapse → protostellar disk → **ignition*
 main sequence (with planets) → red giant (which eats them) → planetary nebula →
 white dwarf → a detour past **a black hole** (the ending heavier stars get) → you.
 
-## Run it
+## Run it (dev)
 
 ```
 python dream-site/fable/serve.py
 ```
 
 Any Python 3 works. No build step, no dependencies, fully offline. Three.js and fonts are vendored.
+
+## Ship it (prod)
+
+Source files (`index.html`, `css/`, `js/`) are what you edit and are never
+touched by the build. `docs/` is a generated build — that's the folder
+GitHub Pages actually serves (Settings → Pages → Source → `main` / `/docs`).
+
+`build.py` only minifies the three files above. `vendor/` (Three.js + its
+postprocessing addons) is third-party and copied through as-is — it's not
+run through our minifier. `vendor/three/build/three.module.js` is already
+the official minified r160 build straight from Three.js's own release, which
+does a better job (dead-code elimination, identifier mangling) than any
+minifier we'd bolt on here. If Three.js ever gets upgraded, replace that one
+file with the new version's `three.module.min.js`, same path, same filename.
+
+One-time setup:
+```
+pip install -r requirements-build.txt
+```
+
+Every time you're ready to deploy:
+```
+./build.sh
+```
+
+Nothing goes live until you review and push `docs/` yourself:
+```
+git add -A && git commit -m "deploy" && git push
+```
 
 
 ## Notes for the curious

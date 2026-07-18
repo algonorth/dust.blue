@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ten Billion Years - The Life of a Star</title>
+<meta name="description" content="The life of a star, compressed into one scroll.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='7' fill='%23ffc46b'/></svg>">
+<link rel="stylesheet" href="css/style.css">
+<script type="importmap">
+{
+"imports": {
+"three": "./vendor/three/build/three.module.js",
+"three/addons/": "./vendor/three/examples/jsm/"
+}
+}
+</script>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<div id="flash"></div>
+<div id="vignette"></div>
+<div id="grain"></div>
+<header id="hud-top">
+<div class="hud-item wordmark">TEN&nbsp;BILLION&nbsp;YEARS</div>
+<div class="hud-item hud-right">ONE STAR&nbsp;/&nbsp;ONE SCROLL</div>
+</header>
+<footer id="hud-bottom">
+<div class="hud-item age"><span class="age-label">STELLAR CLOCK</span><span id="age-value">T − 1,000,000 YR</span></div>
+<div class="hud-item chapter"><span id="chapter-num">00</span><span class="chapter-sep">/</span><span id="chapter-name">OVERTURE</span></div>
+</footer>
+<nav id="timeline" aria-hidden="true">
+<div class="tl-track"><div class="tl-fill" id="tl-fill"></div></div>
+<div class="tl-ticks" id="tl-ticks"></div>
+</nav>
+<div id="scroll-space"></div>
+<main id="copy">
+<section class="ch ch-title" data-top="0">
+<div class="inner center">
+<p class="kicker reveal">EVERY STAR IS A SLOW EXPLOSION, PAUSED BY ITS OWN WEIGHT</p>
+<h1 class="title">
+<span class="t-line reveal d1">Ten</span>
+<span class="t-line reveal d2">Billion</span>
+<span class="t-line reveal d3"><em>Years</em></span>
+</h1>
+<p class="sub reveal d4">The life of a star, compressed into one scroll.</p>
+<div class="scroll-cue reveal d5"><span class="cue-line"></span><span class="cue-text">SCROLL THROUGH DEEP TIME</span></div>
+</div>
+</section>
+<section class="ch left" data-top="132">
+<div class="inner">
+<p class="kicker reveal">CH. 01 / T MINUS ONE MILLION YEARS</p>
+<h2 class="reveal d1">It begins with<br><em>almost nothing.</em></h2>
+<p class="body reveal d2">A cloud of cold hydrogen, ten degrees above absolute
+zero, wider than four hundred solar systems laid end to end. Too thin
+to see. Too heavy to survive itself.</p>
+<p class="body reveal d3">It has been waiting here since before the
+Sun, for a shove, a shockwave, an excuse.</p>
+</div>
+</section>
+<section class="ch right" data-top="276">
+<div class="inner">
+<p class="kicker reveal">CH. 02 / THE COLLAPSE</p>
+<h2 class="reveal d1">Gravity<br><em>always wins.</em></h2>
+<p class="body reveal d2">A dying star detonates somewhere nearby. The blast
+leans on the cloud, and the cloud falls. A hundred thousand years of
+falling, spinning faster as it shrinks, flattening into a disk with a
+furnace-hot heart.</p>
+<p class="hint reveal d3"><span class="hint-dot"></span>YOUR CURSOR IS GRAVITY NOW. DRAG IT THROUGH THE DUST</p>
+</div>
+</section>
+<section class="ch center-ch low" data-top="444">
+<div class="inner center">
+<p class="kicker reveal">CH. 03 / T = 0</p>
+<h2 class="huge reveal d1">At fifteen million degrees,<br>hydrogen <em>forgets</em><br>it was ever alone.</h2>
+<p class="body centered reveal d2">Fusion. A star is born, and begins to shine
+against its own collapse.</p>
+</div>
+</section>
+<section class="ch left" data-top="576">
+<div class="inner">
+<p class="kicker reveal">CH. 04 / THE MAIN SEQUENCE</p>
+<h2 class="reveal d1">Then, for ten billion years,<br><em>nothing happens.</em></h2>
+<p class="body reveal d2">This is the long adulthood. Six hundred million tons
+of hydrogen fused every second, and the star doesn't change for longer
+than the age of the universe. Planets condense out of the leftovers and
+settle into their lanes.</p>
+<p class="hint reveal d3"><span class="hint-dot"></span>YOUR CURSOR IS RADIATION PRESSURE NOW. IT PUSHES</p>
+</div>
+</section>
+<section class="ch right" data-top="732">
+<div class="inner">
+<p class="kicker reveal">CH. 05 / THE RED GIANT</p>
+<h2 class="reveal d1">The core runs dry.<br>The star survives by<br><em>burning its own ash.</em></h2>
+<p class="body reveal d2">Hydrogen spent, the heart contracts and ignites its
+helium ash. The outer layers swell two hundred times over, swallowing
+the near planets whole and boiling the far ones.</p>
+</div>
+</section>
+<section class="ch left" data-top="888">
+<div class="inner">
+<p class="kicker reveal">CH. 06 / THE SHEDDING</p>
+<h2 class="reveal d1">A star this size<br>does not explode.<br><em>It exhales.</em></h2>
+<p class="body reveal d2">Pulse by pulse, the star lets go of everything it
+spent ten billion years holding: carbon, oxygen, nitrogen, blown into
+glowing veils a light-year wide.</p>
+</div>
+</section>
+<section class="ch right" data-top="1020">
+<div class="inner">
+<p class="kicker reveal">CH. 07 / THE WHITE DWARF</p>
+<h2 class="reveal d1">What remains:<br>an ember the size of Earth,<br><em>a spoonful weighs a ton.</em></h2>
+<p class="body reveal d2">No fusion. No fuel. Just leftover heat radiating
+into the dark, a cooling that will outlast every star now shining.</p>
+</div>
+</section>
+<section class="ch left" data-top="1290">
+<div class="inner">
+<p class="kicker reveal">CH. 08 / ELSEWHERE, THE OTHER ENDING</p>
+<h2 class="reveal d1">A star ten times heavier<br>does not exhale.<br><em>It falls forever.</em></h2>
+<p class="body reveal d2">Its core collapses through every floor physics can
+build: past iron, past neutron, past light itself. What remains is a hole
+in the story, dressed in the blazing breath of everything it is still
+swallowing.</p>
+<p class="hint reveal d3"><span class="hint-dot"></span>THE ARCS ABOVE AND BELOW ARE THE DISK'S FAR SIDE. GRAVITY BENDS IT INTO VIEW</p>
+</div>
+</section>
+<section class="ch ch-epilogue" data-top="1420">
+<div class="inner center">
+<p class="kicker reveal">EPILOGUE / T PLUS FOREVER</p>
+<h2 class="huge reveal d1">You were forged,<br>atom by atom, in a furnace<br><em>exactly like this one.</em></h2>
+<p class="body centered reveal d2">The iron in your blood. The oxygen in your first breath. A star gave them up so you could borrow them for a while.</p>
+<p class="fin reveal d3">TEN BILLION YEARS · SCROLLED IN ONE SITTING</p>
+</div>
+</section>
+</main>
+<div id="nogl" hidden>
+<p>This experience needs WebGL. Try a current version of Chrome, Edge, Firefox or Safari.</p>
+</div>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
