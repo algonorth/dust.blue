@@ -228,12 +228,12 @@ const dustMat = new THREE.ShaderMaterial({
         float tproj = dot(toP, nBH);
         vec3 perp = toP - nBH * tproj;
         float bimp = max(length(perp), 0.001);
-        float behind = smoothstep(0.0, 26.0, tproj - dBH);
-        float eR2 = 230.0 * behind * uWBH;              // Einstein radius^2, world units^2
+        float behind = smoothstep(0.0, 36.0, tproj - dBH); // 26.0 is how quickly the climb starts. 
+        float eR2 = 230.0 * behind * uWBH; // 230.0 is the height of the climb // Einstein radius^2, world units^2
         float bLens = 0.5 * (bimp + sqrt(bimp * bimp + 4.0 * eR2));
         pos = cameraPosition + nBH * tproj + perp * (bLens / bimp);
         // grains whose bent light still skims the photon sphere are lost
-        float shadowed = smoothstep(dBH * 0.92, dBH * 1.03, tproj) * (1.0 - smoothstep(5.8, 8.8, bLens));
+        float shadowed = smoothstep(dBH * 0.92, dBH * 1.03, tproj) * (1.0 - smoothstep(5.8, 8.8, bLens)); // 5.8, 8.8 are how much dust the shadow eats. 
         occl = 1.0 - shadowed * uWBH;
       }
 
