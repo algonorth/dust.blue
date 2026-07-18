@@ -811,10 +811,20 @@ function updateSections(pRaw) {
 /* ═══════════════ INPUT ═══════════════ */
 
 let pRaw = 0, p = 0, scrollVel = 0;
+/* measure what CSS actually resolves 1vh to — on mobile, innerHeight shrinks
+   and grows with the URL bar while vh stays pinned to the large viewport,
+   so deriving progress from innerHeight desyncs the scene from the copy */
+const scrollSpace = document.getElementById('scroll-space');
+let pxPerVh = innerHeight / 100;
+function measureVh() {
+  const h = scrollSpace.offsetHeight / 1520; // #scroll-space is 1520vh tall
+  if (h > 0) pxPerVh = h;
+}
 function readScroll() {
-  const denom = innerHeight * 12;
+  const denom = pxPerVh * 1200;
   pRaw = denom > 0 ? clamp(scrollY / denom, 0, P_END) : 0;
 }
+measureVh();
 addEventListener('scroll', readScroll, { passive: true });
 readScroll();
 
@@ -979,6 +989,7 @@ addEventListener('resize', () => {
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
   composer.setSize(innerWidth, innerHeight);
+  measureVh();
   readScroll();
 });
 

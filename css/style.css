@@ -95,8 +95,10 @@ body {
   font-size: 10px; letter-spacing: 0.22em; font-weight: 500;
   color: var(--ivory-dim);
 }
-#hud-top { top: 0; }
-#hud-bottom { bottom: 0; }
+/* viewport-fit=cover lets the page run under notches and home bars —
+   pad the HUD back out of them */
+#hud-top { top: 0; padding-top: max(22px, env(safe-area-inset-top, 0px)); }
+#hud-bottom { bottom: 0; padding-bottom: calc(22px + env(safe-area-inset-bottom, 0px)); }
 
 .wordmark { color: var(--ivory); }
 
@@ -160,6 +162,9 @@ body {
   display: flex; align-items: center;
   padding: 0 8vw;
 }
+/* the opening frame centers in the *visible* viewport (svh) so the scroll
+   cue isn't pushed below the fold while the mobile URL bar is showing */
+.ch-title { min-height: 100svh; }
 .ch .inner { max-width: 620px; position: relative; }
 /* soft scrim so copy survives the densest dust */
 .ch .inner::before {
@@ -308,6 +313,8 @@ h2.huge { font-size: clamp(42px, 5.6vw, 84px); }
 @media (max-width: 720px) {
   #timeline { display: none; }
   #hud-top, #hud-bottom { padding: 16px 18px; font-size: 9px; }
+  #hud-top { padding-top: max(16px, env(safe-area-inset-top, 0px)); }
+  #hud-bottom { padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
   #age-value { min-width: 0; }
   #hud-bottom .chapter { display: none; }
   .hud-right { display: none; }
