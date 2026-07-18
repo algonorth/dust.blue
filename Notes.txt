@@ -1,0 +1,12 @@
+What it is:
+
+One continuous WebGL scene. Not sections with swapped visuals. A single system of 130,000 particles is born as a molecular cloud and is morphed by your scrollbar through every age of a star:
+
+Overture: the title floats inside a living, clumpy blue nebula (the wow moment: it drifts, breathes, and reacts to your cursor immediately)
+The Collapse: the cloud funnels into a spinning edge-on protostellar disk; your cursor is gravity and drags the dust with it
+Ignition: crossing T = 0 fires a white-out flash (crossing-triggered, so it can never stick), and a star is born
+Main Sequence: a granulating shader sun with orbiting planets on faint orbit lines; your cursor flips to radiation pressure and pushes
+Red Giant: the star swells and literally swallows its inner planets, one by one
+The Shedding: teal/pink/gold veils peel off into a filamentary planetary nebula
+White Dwarf: a piercing ember inside the expanding shells; the outermost planet survives
+Epilogue: A stellar clock ticks from T − 1,250,000 YR to T + 13 BILLION YR as you scroll, with a chapter timeline on the right edge, film grain, and an Instrument Serif / IBM Plex Mono editorial layer: all fonts and Three.js vendored, so it runs fully offline with no build step.
