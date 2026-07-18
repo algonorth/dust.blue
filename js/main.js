@@ -566,7 +566,7 @@ const tickEls = [];
   for (const ch of CHAPTERS) {
     const el = document.createElement('div');
     el.className = 'tl-tick';
-    el.style.top = `${ch.p * 100}%`;
+    el.style.top = `${(ch.p / (1156 / 1200)) * 100}%`;
     ticks.appendChild(el);
     tickEls.push(el);
   }
@@ -582,7 +582,7 @@ function updateHUD(p) {
     chapterNameEl.textContent = CHAPTERS[ci].name;
     tickEls.forEach((el, i) => el.classList.toggle('active', i === ci));
   }
-  tlFill.style.height = `${(p * 100).toFixed(2)}%`;
+  tlFill.style.height = `${(clamp(p / P_END, 0, 1) * 100).toFixed(2)}%`;
 
   const age = T.age(p);
   let label;
@@ -612,10 +612,14 @@ function updateSections(pRaw) {
 
 /* ═══════════════ INPUT ═══════════════ */
 
+/* progress is normalized to 1200vh of travel regardless of document height,
+   so the scroll can end at the epilogue (1156vh → p = 0.963) without
+   re-timing every keyframe track */
+const P_END = 1156 / 1200;
 let pRaw = 0, p = 0, scrollVel = 0;
 function readScroll() {
-  const max = document.documentElement.scrollHeight - innerHeight;
-  pRaw = max > 0 ? clamp(scrollY / max, 0, 1) : 0;
+  const denom = innerHeight * 12;
+  pRaw = denom > 0 ? clamp(scrollY / denom, 0, 1) : 0;
 }
 addEventListener('scroll', readScroll, { passive: true });
 readScroll();
