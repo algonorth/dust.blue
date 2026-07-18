@@ -14,9 +14,7 @@ white dwarf → you.
 python dream-site/fable/serve.py
 ```
 
-Then open **http://localhost:4321**
-
-(Any Python 3 works. No build step, no dependencies, fully offline. Three.js and fonts are vendored.)
+Any Python 3 works. No build step, no dependencies, fully offline. Three.js and fonts are vendored.
 
 ## Notes for the curious
 
