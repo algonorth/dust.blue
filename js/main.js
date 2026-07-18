@@ -159,7 +159,7 @@ const dustMat = new THREE.ShaderMaterial({
     attribute vec4 aSeed;
     uniform float uTime, uWCloud, uWDisk, uWShell, uShellR, uConsume, uSpinPhase, uTurb, uSize, uMouseF, uHeat, uWBH, uHomeRot;
     uniform vec3 uMouse, uBHPos;
-    varying float vAlpha, vHeat, vHue, vBillow;
+    varying float vAlpha, vHeat, vHue, vBillow, vDop;
 
     void main() {
       float ph = aSeed.x;
@@ -188,10 +188,17 @@ const dustMat = new THREE.ShaderMaterial({
       ps += vec3(sin(uTime * 0.3 + ph), cos(uTime * 0.26 + ph * 1.3), sin(uTime * 0.22 + ph * 2.1)) * 0.35;
 
       // — black-hole accretion fringe: the disk distribution reborn, huge,
-      //   shearing around the hole. grains lap it on keplerian clocks.
+      //   shearing around the hole. grains lap it on keplerian clocks,
+      //   paced to the disk shader's shear so the two layers read as one.
       float rb = length(aDisk.xz) * 2.9 + 13.0;
-      float angB = atan(aDisk.z, aDisk.x) + uTime * (42.0 / pow(rb, 1.5));
-      vec3 pb = uBHPos + vec3(cos(angB) * rb, aDisk.y * 1.4, sin(angB) * rb);
+      float angB = atan(aDisk.z, aDisk.x) + uTime * (32.0 / pow(rb, 1.5));
+      // inner grains settle into the disk plane and become part of it;
+      // the far fringe stays a loose halo
+      float hug = 1.0 - smoothstep(15.0, 44.0, rb);
+      vec3 pb = uBHPos + vec3(cos(angB) * rb, aDisk.y * mix(1.4, 0.3, hug), sin(angB) * rb);
+      // same relativistic beaming as the disk: approaching side brightens
+      float dop = 1.0 + 0.72 * sin(angB) / sqrt(rb * 0.155);
+      vDop = mix(1.0, clamp(dop, 0.55, 1.6), uWBH);
 
       // home slowly rotates about the origin — but ONLY home. rotating the
       // black-hole fringe (offset 400 units) would fling it sideways.
@@ -243,7 +250,7 @@ const dustMat = new THREE.ShaderMaterial({
     precision highp float;
     uniform vec3 uColA, uColB, uShell1, uShell2, uShell3;
     uniform float uAlpha, uWShell;
-    varying float vAlpha, vHeat, vHue, vBillow;
+    varying float vAlpha, vHeat, vHue, vBillow, vDop;
 
     void main() {
       vec2 c = gl_PointCoord - 0.5;
@@ -262,7 +269,7 @@ const dustMat = new THREE.ShaderMaterial({
       float grainA = (fall * 0.55 + core) * vAlpha;
       float billowA = pow(smoothstep(0.5, 0.0, d), 1.6) * 0.085 * (0.5 + vAlpha) * (1.0 - vHeat * 0.8);
       float a = mix(grainA, billowA, vBillow) * uAlpha;
-      gl_FragColor = vec4(col * (1.0 + vHeat * 2.0 * (1.0 - vBillow) + core), a);
+      gl_FragColor = vec4(col * (1.0 + vHeat * 2.0 * (1.0 - vBillow) + core) * vDop, a * clamp(vDop, 0.7, 1.2));
     }
   `,
 });
@@ -550,16 +557,23 @@ const bh = new THREE.Mesh(
       }
       float fbm(vec2 p){
         float v = 0.0, a = 0.5;
-        for (int i = 0; i < 4; i++) { v += a * n2(p); p = p * 2.17 + 11.3; a *= 0.5; }
+        mat2 rot = mat2(0.80, -0.60, 0.60, 0.80);
+        for (int i = 0; i < 4; i++) { v += a * n2(p); p = rot * p * 2.17 + 11.3; a *= 0.5; }
         return v;
       }
 
-      // emission of the thin disk at radius rr (in rs units) and azimuth ang
+      // emission of the thin disk at radius rr (in rs units) and azimuth ang.
+      // noise is sampled on circles in the domain — vec2(cos, sin) — so the
+      // pattern tiles seamlessly in azimuth (no seam at ang = ±π) and the
+      // lattice never aligns with circles of constant radius (no terracing)
       vec3 diskColor(float rr, float ang, out float aa) {
         // keplerian shear: inner bands lap the outer ones
-        float w = 4.4 / pow(rr, 1.5);
-        float band  = fbm(vec2(rr * 2.6, ang * 2.5 - uTime * w * 1.4));
-        float band2 = fbm(vec2(rr * 7.0 + 31.0, ang * 4.0 - uTime * w * 2.1));
+        float w = 4.4 / pow(rr, 1.15);
+        float a1 = ang - uTime * w * 0.56;
+        float a2 = ang - uTime * w * 0.53;
+        float wob = fbm(vec2(rr * 0.55 + 1.7 * cos(a1 + 2.1), 1.7 * sin(a1 + 2.1))) * 2.3;
+        float band  = fbm(vec2(rr * 2.6 + wob + 2.5 * cos(a1), 2.5 * sin(a1)));
+        float band2 = fbm(vec2(rr * 7.0 + 31.0 + 4.0 * cos(a2), 4.0 * sin(a2) + wob));
         float streak = band * 0.65 + band2 * 0.35;
         float heat = clamp(1.7 / (rr - 1.5), 0.0, 2.4);
         vec3 cHot = vec3(1.45, 1.25, 1.0);
