@@ -659,13 +659,16 @@ const T = {
   lookY: track([[1.02, 0], [1.09, -3], [1.115, -3.8], [1.14, 0]]),
   lookZ: track([[0.98, 0], [1.03, -400], [1.125, -400], [1.15, 0]]),
   camRoll: track([[0.995, 0], [1.04, -0.34], [1.125, -0.46], [1.155, 0]]),
-  bhOp: track([[0.985, 0], [1.02, 1], [1.125, 1], [1.155, 0]]),
+  bhOp: track([[0.985, 0], [1.02, 1], [1.135, 1], [1.165, 0]]),
   /* the grains stay lit and visibly fly home to become the nebula —
      the camera has already turned, so the flight comes from behind,
      past the lens, and condenses into the shell dead ahead */
   wBH: track([[0.99, 0], [1.03, 1], [1.145, 1], [1.175, 0]]),
   /* the return path arcs AROUND home — never through the white dwarf */
   camX: track([[1.10, 0], [1.14, 10], [1.16, 30], [1.1833, 0]]),
+  /* follow-cam: how much the camera rides with the swarm instead of
+     running on rails — 1 means position + gaze derive from the flock */
+  follow: track([[1.13, 0], [1.15, 1], [1.175, 1], [1.1833, 0]]),
   wCloud: track([[0, 1], [0.20, 1], [0.32, 0]]),
   wDisk: track([[0.20, 0], [0.30, 1], [0.40, 1], [0.50, 0]]),
   wShell: track([[0.66, 0], [0.745, 1], [0.99, 1], [1.04, 0], [1.145, 0], [1.175, 1]]),
@@ -846,8 +849,18 @@ function frame() {
   const lx = T.lookX(p);
   camera.position.x = lx * 0.3 + T.camX(p) + mouseNDC.x * (2.2 + cz * 0.05) + Math.sin(t * 0.05) * 0.8;
   camera.position.y = T.camY(p) + mouseNDC.y * (1.4 + cz * 0.03);
-  camera.position.z = cz;
-  camera.lookAt(lx, T.lookY(p), T.lookZ(p));
+  // follow-cam: during the flight home, position and gaze come from the
+  // swarm itself — trail the flock, watch it, land where it lands
+  let czF = cz, lzF = T.lookZ(p);
+  const fw = T.follow(p);
+  if (fw > 0) {
+    const wb = T.wBH(p), ws = T.wShell(p);
+    const swarmZ = -400 * (wb / (wb + ws + 0.001)); // the flock's centre
+    czF = lerp(czF, swarmZ + 55, fw);               // ride 55 behind it
+    lzF = lerp(lzF, swarmZ * 1.15, fw);             // gaze slightly ahead of it
+  }
+  camera.position.z = czF;
+  camera.lookAt(lx, T.lookY(p), lzF);
   const roll = T.camRoll(p);
   if (roll !== 0) camera.rotateZ(roll);
 
