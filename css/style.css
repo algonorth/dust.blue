@@ -146,8 +146,8 @@ body {
 
 /* ————— scroll + copy ————— */
 
-/* ends exactly where the epilogue centers: 1156vh of travel + 100vh viewport */
-#scroll-space { height: 1256vh; position: relative; z-index: 1; }
+/* ends exactly where the epilogue centers: 1420vh of travel + 100vh viewport */
+#scroll-space { height: 1520vh; position: relative; z-index: 1; }
 
 #copy {
   position: absolute; top: 0; left: 0; right: 0; z-index: 2;

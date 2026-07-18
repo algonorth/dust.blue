@@ -128,6 +128,9 @@ const dustUniforms = {
   uWDisk: { value: 0 },
   uWShell: { value: 0 },
   uShellR: { value: 6 },
+  uHomeRot: { value: 0 },
+  uWBH: { value: 0 },
+  uBHPos: { value: new THREE.Vector3(0, 0, -400) },
   uConsume: { value: 0 },
   uSpinPhase: { value: 0 },
   uTurb: { value: 1.6 },
@@ -154,8 +157,8 @@ const dustMat = new THREE.ShaderMaterial({
     attribute vec3 aDisk;
     attribute vec3 aShell;
     attribute vec4 aSeed;
-    uniform float uTime, uWCloud, uWDisk, uWShell, uShellR, uConsume, uSpinPhase, uTurb, uSize, uMouseF, uHeat;
-    uniform vec3 uMouse;
+    uniform float uTime, uWCloud, uWDisk, uWShell, uShellR, uConsume, uSpinPhase, uTurb, uSize, uMouseF, uHeat, uWBH, uHomeRot;
+    uniform vec3 uMouse, uBHPos;
     varying float vAlpha, vHeat, vHue, vBillow;
 
     void main() {
@@ -184,7 +187,18 @@ const dustMat = new THREE.ShaderMaterial({
       vec3 ps = aShell * sr;
       ps += vec3(sin(uTime * 0.3 + ph), cos(uTime * 0.26 + ph * 1.3), sin(uTime * 0.22 + ph * 2.1)) * 0.35;
 
-      vec3 pos = pc * uWCloud + pd * uWDisk + ps * uWShell;
+      // — black-hole accretion fringe: the disk distribution reborn, huge,
+      //   shearing around the hole. grains lap it on keplerian clocks.
+      float rb = length(aDisk.xz) * 2.9 + 13.0;
+      float angB = atan(aDisk.z, aDisk.x) + uTime * (42.0 / pow(rb, 1.5));
+      vec3 pb = uBHPos + vec3(cos(angB) * rb, aDisk.y * 1.4, sin(angB) * rb);
+
+      // home slowly rotates about the origin — but ONLY home. rotating the
+      // black-hole fringe (offset 400 units) would fling it sideways.
+      vec3 home = pc * uWCloud + pd * uWDisk + ps * uWShell;
+      float cR = cos(uHomeRot), sR = sin(uHomeRot);
+      home.xz = vec2(home.x * cR + home.z * sR, home.z * cR - home.x * sR);
+      vec3 pos = home + pb * uWBH;
 
       // — cursor: gravity before ignition, radiation pressure after
       vec3 dm = pos - uMouse;
@@ -198,14 +212,31 @@ const dustMat = new THREE.ShaderMaterial({
       float dist = max(0.1, -mv.z);
       // shells render crisper; billows render huge and soft
       float sizeMul = mix(1.0, 0.75, uWShell) * mix(1.0, mix(11.0, 3.0, uWShell), billow);
-      float maxPx = mix(26.0, 150.0, billow);
+      sizeMul *= mix(1.0, 0.55, uWBH);                    // fringe grains stay fine mist
+      // mid-morph the swarm is far away — swell the grains so the flight reads
+      float flight = uWBH * (1.0 - uWBH) * 4.0;
+      sizeMul *= 1.0 + flight * 1.4;
+      float maxPx = mix(mix(26.0, 12.0, uWBH), 150.0, billow);
       gl_PointSize = clamp(uSize * aSeed.z * sizeMul / dist, 0.6, maxPx);
 
-      // heat by proximity to core (disk phase)
+      // heat by proximity to core (disk phase) — or to the event horizon
       vHeat = uHeat * exp(-r * 0.22) * uWDisk;
+      vHeat = max(vHeat, uWBH * exp(-(rb - 13.0) * 0.05) * 1.2);
       vHue = aSeed.w;
       // fade the far cloud haze slightly, keep clumps dense
       vAlpha = 0.55 + 0.45 * sin(ph + uTime * 0.4 * spd);
+
+      // fake lensing occlusion: grains that pass behind the shadow vanish
+      if (uWBH > 0.01) {
+        vec3 toBH = uBHPos - cameraPosition;
+        float dBH = length(toBH);
+        vec3 nBH = toBH / dBH;
+        vec3 toP = pos - cameraPosition;
+        float tproj = dot(toP, nBH);
+        float bimp = length(toP - nBH * tproj);
+        float behind = smoothstep(dBH * 0.92, dBH * 1.03, tproj);
+        vAlpha *= 1.0 - behind * (1.0 - smoothstep(6.0, 10.5, bimp)) * uWBH;
+      }
     }
   `,
   fragmentShader: /* glsl */`
@@ -237,6 +268,7 @@ const dustMat = new THREE.ShaderMaterial({
 });
 const dust = new THREE.Points(dustGeo, dustMat);
 dust.frustumCulled = false;
+dust.renderOrder = 5; // after the black hole quad: near-side grains cross in front
 scene.add(dust);
 
 /* ═══════════════ BACKGROUND STARS ═══════════════ */
@@ -476,6 +508,132 @@ for (const pl of PLANETS) {
   planetGroup.add(m, ring);
 }
 
+/* ═══════════════ THE BLACK HOLE — the other ending ═══════════════
+   Real gravitational lensing: photon paths are integrated around the
+   singularity per-pixel (Schwarzschild null-geodesic approximation),
+   so the disk's far side bends into the arcs above and below the
+   shadow, and a thin photon ring emerges — the Gargantua look. */
+
+const BH_POS = new THREE.Vector3(0, 0, -400);
+const BH_STEPS = IS_TOUCH ? 56 : 110;
+const bhUni = {
+  uTime: { value: 0 },
+  uFade: { value: 0 },
+  uExpo: { value: 1 }, // stops down as the camera closes in
+  uCamPos: { value: new THREE.Vector3() },
+  uCenter: { value: BH_POS },
+};
+const bh = new THREE.Mesh(
+  new THREE.PlaneGeometry(116, 116),
+  new THREE.ShaderMaterial({
+    uniforms: bhUni,
+    transparent: true, depthWrite: false, depthTest: false,
+    vertexShader: /* glsl */`
+      varying vec3 vWorld;
+      void main() {
+        vec4 w = modelMatrix * vec4(position, 1.0);
+        vWorld = w.xyz;
+        gl_Position = projectionMatrix * viewMatrix * w;
+      }
+    `,
+    fragmentShader: /* glsl */`
+      precision highp float;
+      uniform float uTime, uFade, uExpo;
+      uniform vec3 uCamPos, uCenter;
+      varying vec3 vWorld;
+
+      float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+      float n2(vec2 p){
+        vec2 i = floor(p), f = fract(p);
+        f = f * f * (3.0 - 2.0 * f);
+        return mix(mix(hash(i), hash(i + vec2(1,0)), f.x), mix(hash(i + vec2(0,1)), hash(i + vec2(1,1)), f.x), f.y);
+      }
+      float fbm(vec2 p){
+        float v = 0.0, a = 0.5;
+        for (int i = 0; i < 4; i++) { v += a * n2(p); p = p * 2.17 + 11.3; a *= 0.5; }
+        return v;
+      }
+
+      // emission of the thin disk at radius rr (in rs units) and azimuth ang
+      vec3 diskColor(float rr, float ang, out float aa) {
+        // keplerian shear: inner bands lap the outer ones
+        float w = 4.4 / pow(rr, 1.5);
+        float band  = fbm(vec2(rr * 2.6, ang * 2.5 - uTime * w * 1.4));
+        float band2 = fbm(vec2(rr * 7.0 + 31.0, ang * 4.0 - uTime * w * 2.1));
+        float streak = band * 0.65 + band2 * 0.35;
+        float heat = clamp(1.7 / (rr - 1.5), 0.0, 2.4);
+        vec3 cHot = vec3(1.45, 1.25, 1.0);
+        vec3 cMid = vec3(1.35, 0.72, 0.28);
+        vec3 cOut = vec3(0.85, 0.32, 0.09);
+        vec3 col = mix(cOut, cMid, clamp(heat * 0.7, 0.0, 1.0));
+        col = mix(col, cHot, clamp(heat - 0.8, 0.0, 1.0));
+        float edgeIn = smoothstep(2.85, 3.4, rr);
+        // long dim outer skirt — reaches out under the particle fringe
+        float edgeOut = 1.0 - smoothstep(6.5, 12.2, rr);
+        edgeOut *= edgeOut;
+        aa = edgeIn * edgeOut * (0.4 + streak * 0.85);
+        // relativistic beaming: the approaching side burns brighter
+        float dop = 1.0 + 0.72 * sin(ang) / sqrt(rr * 0.34);
+        col *= dop;
+        aa *= clamp(dop, 0.5, 1.7);
+        return col * (0.55 + heat) * aa;
+      }
+
+      void main() {
+        const float RS = 2.2;                    // event horizon radius, world units
+        vec3 ro = (uCamPos - uCenter) / RS;
+        vec3 rd = normalize(vWorld - uCamPos);
+
+        // impact parameter: rays that pass far away are untouched
+        float b = length(cross(rd, ro));
+        if (b > 24.0) { gl_FragColor = vec4(0.0); return; }
+
+        // fast-forward to just outside the strong-field region
+        float tca = -dot(ro, rd);
+        vec3 pos = ro + rd * max(tca - 20.0, 0.0);
+        vec3 vel = rd;
+        vec3 hv = cross(pos, vel);
+        float h2 = dot(hv, hv);
+
+        vec3 col = vec3(0.0);
+        float alpha = 0.0;
+        bool captured = false;
+        float py = pos.y;
+
+        for (int i = 0; i < ${BH_STEPS}; i++) {
+          float r = length(pos);
+          if (r < 1.03) { captured = true; break; }
+          if (r > 42.0 && dot(pos, vel) > 0.0) break;
+          float dt = clamp(r * 0.14, 0.06, 0.9);
+          if (r < 8.0) dt *= 0.5;
+          vel += -1.5 * h2 * pos / pow(r, 5.0) * dt;   // photon bending
+          pos += vel * dt;
+          // thin-disk crossing (allows multiple lensed images per ray)
+          if (pos.y * py < 0.0) {
+            float f = py / (py - pos.y);
+            vec3 hit = pos - vel * dt * (1.0 - f);
+            float rr = length(hit.xz);
+            if (rr > 2.85 && rr < 12.4) {
+              float aa;
+              vec3 cc = diskColor(rr, atan(hit.z, hit.x), aa);
+              col += cc * (1.0 - alpha);
+              alpha += aa * (1.0 - alpha);
+              if (alpha > 0.98) break;
+            }
+          }
+          py = pos.y;
+        }
+        if (captured) alpha = 1.0;                 // the shadow swallows the sky
+        gl_FragColor = vec4(col * uExpo * uFade, alpha * uFade);
+      }
+    `,
+  })
+);
+bh.position.copy(BH_POS);
+bh.renderOrder = 4;
+bh.visible = false;
+scene.add(bh);
+
 /* ═══════════════ POST ═══════════════ */
 
 const composer = new EffectComposer(renderer);
@@ -486,19 +644,36 @@ composer.addPass(new OutputPass());
 
 /* ═══════════════ CHOREOGRAPHY — every track keyed to scroll p ═══════════════ */
 
+/* progress p is normalized to 1200vh of travel; the black-hole detour and
+   epilogue live beyond p = 1.0 (scroll now travels 1420vh → P_END) */
+const P_END = 1420 / 1200;
+
 const T = {
-  camZ: track([[0, 66], [0.10, 58], [0.24, 40], [0.34, 26], [0.385, 22], [0.44, 20], [0.52, 21], [0.62, 36], [0.70, 50], [0.78, 58], [0.86, 46], [0.93, 56], [1, 70]]),
-  camY: track([[0, 4], [0.24, 7], [0.34, 3], [0.385, 1.2], [0.52, 0.9], [0.62, 4], [0.70, 7], [0.78, 9], [0.86, 1.4], [1, 6]]),
+  camZ: track([[0, 66], [0.10, 58], [0.24, 40], [0.34, 26], [0.385, 22], [0.44, 20], [0.52, 21], [0.62, 36], [0.70, 50], [0.78, 58], [0.86, 46], [0.93, 56], [0.98, 64], [1.02, -80], [1.08, -338], [1.115, -364], [1.14, -120], [1.17, 46], [1.1833, 58]]),
+  camY: track([[0, 4], [0.24, 7], [0.34, 3], [0.385, 1.2], [0.52, 0.9], [0.62, 4], [0.70, 7], [0.78, 9], [0.86, 1.4], [0.96, 5], [1.02, 4], [1.08, 4.4], [1.115, 4.8], [1.15, 4], [1.1833, 6]]),
   /* frame the star opposite each chapter's text column */
-  lookX: track([[0.40, 0], [0.44, -6.5], [0.56, -6.5], [0.61, 7.5], [0.68, 8], [0.71, 4], [0.745, -6], [0.78, -6], [0.82, 3.5], [0.88, 3.5], [0.93, 0]]),
+  lookX: track([[0.40, 0], [0.44, -6.5], [0.56, -6.5], [0.61, 7.5], [0.68, 8], [0.71, 4], [0.745, -6], [0.78, -6], [0.82, 3.5], [0.88, 3.5], [0.93, 0], [0.99, 0], [1.03, -14], [1.09, -8], [1.115, -3.5], [1.14, 0]]),
+  /* the camera turns away from home and faces the abyss, then comes back.
+     as it closes in it looks slightly below the hole (shadow rides high)
+     and rolls — the Interstellar flyby framing */
+  lookY: track([[1.02, 0], [1.09, -3], [1.115, -3.8], [1.14, 0]]),
+  lookZ: track([[0.98, 0], [1.03, -400], [1.125, -400], [1.15, 0]]),
+  camRoll: track([[0.995, 0], [1.04, -0.34], [1.125, -0.46], [1.155, 0]]),
+  bhOp: track([[0.985, 0], [1.02, 1], [1.125, 1], [1.155, 0]]),
+  /* the grains stay lit and visibly fly home to become the nebula —
+     the camera has already turned, so the flight comes from behind,
+     past the lens, and condenses into the shell dead ahead */
+  wBH: track([[0.99, 0], [1.03, 1], [1.145, 1], [1.175, 0]]),
+  /* the return path arcs AROUND home — never through the white dwarf */
+  camX: track([[1.10, 0], [1.14, 10], [1.16, 30], [1.1833, 0]]),
   wCloud: track([[0, 1], [0.20, 1], [0.32, 0]]),
   wDisk: track([[0.20, 0], [0.30, 1], [0.40, 1], [0.50, 0]]),
-  wShell: track([[0.66, 0], [0.745, 1], [1, 1]]),
+  wShell: track([[0.66, 0], [0.745, 1], [0.99, 1], [1.04, 0], [1.145, 0], [1.175, 1]]),
   shellR: track([[0.66, 4], [0.74, 11], [0.86, 17], [1, 27]]),
   consume: track([[0.30, 0], [0.40, 0.4], [0.50, 0.95]]),
   spinPhase: track([[0.20, 0], [0.34, 5.5], [0.50, 9]]),
   turb: track([[0, 1.7], [0.24, 2.6], [0.34, 1.1], [0.5, 0.7], [0.74, 1.3], [1, 1.0]]),
-  dustAlpha: track([[0, 0.85], [0.30, 1], [0.44, 0.5], [0.50, 0.1], [0.64, 0.06], [0.70, 0.5], [0.76, 0.95], [0.86, 0.65], [1, 0.4]]),
+  dustAlpha: track([[0, 0.85], [0.30, 1], [0.44, 0.5], [0.50, 0.1], [0.64, 0.06], [0.70, 0.5], [0.76, 0.95], [0.86, 0.65], [1.0, 0.35], [1.04, 0.55], [1.15, 0.5], [1.175, 0.5], [1.1833, 0.42]]),
   heat: track([[0.22, 0], [0.32, 0.55], [0.385, 1], [0.5, 1]]),
   mouseF: track([[0, -2.8], [0.30, -3.4], [0.375, -3.6], [0.39, 2.8], [0.60, 2.2], [0.74, 3.2], [1, 1.6]]),
   starR: track([[0.35, 0.001], [0.385, 1.5], [0.42, 2.0], [0.56, 2.1], [0.66, 9], [0.72, 8.2], [0.78, 3.0], [0.825, 0.4], [0.86, 0.3], [1, 0.28]]),
@@ -508,7 +683,7 @@ const T = {
   spots: track([[0.42, 0.7], [0.6, 0.4], [0.72, 0.1], [0.83, 0]]),
   coronaScale: track([[0.24, 0.1], [0.30, 1.4], [0.36, 2.4], [0.40, 4.6], [0.5, 5.0], [0.66, 20], [0.72, 18], [0.78, 7.5], [0.825, 1.7], [1, 1.6]]),
   coronaOp: track([[0.22, 0], [0.28, 0.25], [0.34, 0.45], [0.375, 0.5], [0.40, 0.55], [0.52, 0.32], [0.68, 0.28], [0.78, 0.25], [0.83, 0.55], [0.92, 0.32], [1, 0.22]]),
-  bloomS: track([[0, 0.55], [0.30, 0.7], [0.36, 0.85], [0.378, 1.1], [0.388, 3.0], [0.43, 0.8], [0.58, 0.45], [0.62, 0.25], [0.72, 0.28], [0.79, 0.7], [0.83, 1.5], [0.9, 1.0], [1, 0.6]]),
+  bloomS: track([[0, 0.55], [0.30, 0.7], [0.36, 0.85], [0.378, 1.1], [0.388, 3.0], [0.43, 0.8], [0.58, 0.45], [0.62, 0.25], [0.72, 0.28], [0.79, 0.7], [0.83, 1.5], [0.9, 1.0], [1.0, 0.7], [1.05, 0.9], [1.115, 0.65], [1.15, 0.8], [1.1833, 0.6]]),
   planetA: track([[0.42, 0], [0.485, 1]]),
   age: track([[0, -1.25e6], [0.11, -9.6e5], [0.24, -1.4e5], [0.36, -900], [0.385, 0], [0.44, 3.1e8], [0.56, 9.8e9], [0.66, 1.19e10], [0.745, 1.202e10], [0.83, 1.2103e10], [1, 1.34e10]]),
 };
@@ -521,6 +696,9 @@ const PAL = [
   { p: 0.55, a: 0x3a2f3e, b: 0xb98a6a },
   { p: 0.72, a: 0x274a52, b: 0x7adfd0 },
   { p: 1.00, a: 0x1e3440, b: 0x58b8ac },
+  { p: 1.05, a: 0x4a2c14, b: 0xd08a48 },  // accretion amber
+  { p: 1.145, a: 0x4a2c14, b: 0xd08a48 }, // hold through the flyby
+  { p: 1.175, a: 0x1e3440, b: 0x58b8ac }, // turns teal mid-flight home
 ];
 const _ca = new THREE.Color(), _cb = new THREE.Color(), _c2a = new THREE.Color(), _c2b = new THREE.Color();
 function dustPalette(p) {
@@ -552,7 +730,8 @@ const CHAPTERS = [
   { p: 0.575, num: '05', name: 'RED GIANT' },
   { p: 0.695, num: '06', name: 'THE SHEDDING' },
   { p: 0.795, num: '07', name: 'WHITE DWARF' },
-  { p: 0.91, num: '08', name: 'EPILOGUE' },
+  { p: 0.985, num: '08', name: 'THE OTHER ENDING' },
+  { p: 1.135, num: '∞', name: 'EPILOGUE' },
 ];
 const chapterNumEl = document.getElementById('chapter-num');
 const chapterNameEl = document.getElementById('chapter-name');
@@ -566,7 +745,7 @@ const tickEls = [];
   for (const ch of CHAPTERS) {
     const el = document.createElement('div');
     el.className = 'tl-tick';
-    el.style.top = `${(ch.p / (1156 / 1200)) * 100}%`;
+    el.style.top = `${(ch.p / P_END) * 100}%`;
     ticks.appendChild(el);
     tickEls.push(el);
   }
@@ -590,6 +769,8 @@ function updateHUD(p) {
   else if (age < 1e6) label = `T + ${Math.round(age).toLocaleString('en-US')} YR`;
   else if (age < 1e9) label = `T + ${(age / 1e6).toFixed(1)} MILLION YR`;
   else label = `T + ${(age / 1e9).toFixed(2)} BILLION YR`;
+  // near the black hole, timekeeping is a matter of opinion
+  if (p > 0.985 && p < 1.15) label = 'CLOCKS DISAGREE HERE';
   ageEl.textContent = label;
 }
 
@@ -612,14 +793,10 @@ function updateSections(pRaw) {
 
 /* ═══════════════ INPUT ═══════════════ */
 
-/* progress is normalized to 1200vh of travel regardless of document height,
-   so the scroll can end at the epilogue (1156vh → p = 0.963) without
-   re-timing every keyframe track */
-const P_END = 1156 / 1200;
 let pRaw = 0, p = 0, scrollVel = 0;
 function readScroll() {
   const denom = innerHeight * 12;
-  pRaw = denom > 0 ? clamp(scrollY / denom, 0, 1) : 0;
+  pRaw = denom > 0 ? clamp(scrollY / denom, 0, P_END) : 0;
 }
 addEventListener('scroll', readScroll, { passive: true });
 readScroll();
@@ -667,10 +844,12 @@ function frame() {
   const introK = 1 - Math.pow(Math.min(t / 4, 1), 0.7);
   const cz = T.camZ(p) + introK * 9;
   const lx = T.lookX(p);
-  camera.position.x = lx * 0.3 + mouseNDC.x * (2.2 + cz * 0.05) + Math.sin(t * 0.05) * 0.8;
+  camera.position.x = lx * 0.3 + T.camX(p) + mouseNDC.x * (2.2 + cz * 0.05) + Math.sin(t * 0.05) * 0.8;
   camera.position.y = T.camY(p) + mouseNDC.y * (1.4 + cz * 0.03);
   camera.position.z = cz;
-  camera.lookAt(lx, 0, 0);
+  camera.lookAt(lx, T.lookY(p), T.lookZ(p));
+  const roll = T.camRoll(p);
+  if (roll !== 0) camera.rotateZ(roll);
 
   // cursor → world on z=0 plane
   if (mouseActive) {
@@ -694,8 +873,9 @@ function frame() {
   dustUniforms.uAlpha.value = T.dustAlpha(p);
   dustUniforms.uHeat.value = T.heat(p);
   dustUniforms.uMouseF.value = T.mouseF(p);
+  dustUniforms.uWBH.value = T.wBH(p);
+  dustUniforms.uHomeRot.value = t * 0.004 + p * 0.35;
   dustPalette(p);
-  dust.rotation.y = t * 0.004 + p * 0.35;
 
   // star
   const sr = T.starR(p);
@@ -746,6 +926,17 @@ function frame() {
   flashT = Math.max(0, flashT - dt * (flashT > 0.6 ? 0.9 : 1.6));
   flashEl.style.opacity = (flashT * flashT * 0.95).toFixed(3);
 
+  // black hole — the other ending
+  const bhF = T.bhOp(p);
+  bh.visible = bhF > 0.01;
+  if (bh.visible) {
+    bhUni.uTime.value = t;
+    bhUni.uFade.value = bhF;
+    bhUni.uCamPos.value.copy(camera.position);
+    bhUni.uExpo.value = clamp(camera.position.distanceTo(BH_POS) / 80, 0.42, 1);
+    bh.quaternion.copy(camera.quaternion);
+  }
+
   // bloom breathes with the story
   bloom.strength = T.bloomS(p) + Math.min(scrollVel * 1.2, 0.35);
 
@@ -774,4 +965,4 @@ requestAnimationFrame(() => {
 frame();
 
 /* dev handle (harmless in prod) */
-window.__tby = { starUni, coronaUni, bloom, corona, star, dustUniforms, renderer };
+window.__tby = { starUni, coronaUni, bloom, corona, star, dustUniforms, renderer, bh, bhUni };
