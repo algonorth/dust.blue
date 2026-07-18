@@ -228,16 +228,12 @@ const dustMat = new THREE.ShaderMaterial({
         float tproj = dot(toP, nBH);
         vec3 perp = toP - nBH * tproj;
         float bimp = max(length(perp), 0.001);
-        // Einstein radius from the real lens geometry: b_e^2 = 2 rs D_ls D_l / D_s.
-        // material just behind the hole lenses hard, so its dust rides the
-        // crest of the upper arc instead of lingering low
-        float dls = max(tproj - dBH, 0.0);
-        float soft = smoothstep(0.0, 5.0, dls);
-        float eR2 = 4.4 * dls * dBH / (dls + dBH + 0.001) * soft * uWBH;
+        float behind = smoothstep(0.0, 26.0, tproj - dBH);
+        float eR2 = 230.0 * behind * uWBH;              // Einstein radius^2, world units^2
         float bLens = 0.5 * (bimp + sqrt(bimp * bimp + 4.0 * eR2));
         pos = cameraPosition + nBH * tproj + perp * (bLens / bimp);
-        // only light that lands inside the photon-capture radius is lost
-        float shadowed = smoothstep(dBH * 0.95, dBH * 1.02, tproj) * (1.0 - smoothstep(4.8, 6.2, bLens));
+        // grains whose bent light still skims the photon sphere are lost
+        float shadowed = smoothstep(dBH * 0.92, dBH * 1.03, tproj) * (1.0 - smoothstep(5.8, 8.8, bLens));
         occl = 1.0 - shadowed * uWBH;
       }
 
