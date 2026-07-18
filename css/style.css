@@ -238,7 +238,8 @@ h2.huge { font-size: clamp(42px, 5.6vw, 84px); }
 
 .fin {
   margin-top: 56px;
-  font-size: 10px; letter-spacing: 0.3em; color: var(--ivory-faint);
+  font-size: 10px; letter-spacing: 0.3em;
+  color: rgba(239, 233, 220, 0.44);
 }
 
 .scroll-cue {
