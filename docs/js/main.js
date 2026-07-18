@@ -67,6 +67,29 @@ const dustUniforms={uTime:{value:0},uWCloud:{value:1},uWDisk:{value:0},uWShell:{
       vec3 swirl = normalize(cross(vec3(0.0, 0.0, 1.0), dm + 0.001));
       pos += (normalize(dm + 0.001) * f + swirl * f * 0.7);
 
+      // gravitational lensing: the disk is flat, but light from grains
+      // behind the hole bends around it — same physics that lifts the
+      // raymarched disk's far side into the arcs. Displace the apparent
+      // position outward (Einstein-lens mapping) so far-side dust sweeps
+      // up and over the shadow instead of sliding flat across it.
+      float occl = 1.0;
+      if (uWBH > 0.01) {
+        vec3 toBH = uBHPos - cameraPosition;
+        float dBH = length(toBH);
+        vec3 nBH = toBH / dBH;
+        vec3 toP = pos - cameraPosition;
+        float tproj = dot(toP, nBH);
+        vec3 perp = toP - nBH * tproj;
+        float bimp = max(length(perp), 0.001);
+        float behind = smoothstep(0.0, 36.0, tproj - dBH); // 26.0 is how quickly the climb starts. 
+        float eR2 = 230.0 * behind * uWBH; // 230.0 is the height of the climb // Einstein radius^2, world units^2
+        float bLens = 0.5 * (bimp + sqrt(bimp * bimp + 4.0 * eR2));
+        pos = cameraPosition + nBH * tproj + perp * (bLens / bimp);
+        // grains whose bent light still skims the photon sphere are lost
+        float shadowed = smoothstep(dBH * 0.92, dBH * 1.03, tproj) * (1.0 - smoothstep(5.8, 8.8, bLens)); // 5.8, 8.8 are how much dust the shadow eats. 
+        occl = 1.0 - shadowed * uWBH;
+      }
+
       vec4 mv = modelViewMatrix * vec4(pos, 1.0);
       gl_Position = projectionMatrix * mv;
       float dist = max(0.1, -mv.z);
@@ -84,19 +107,7 @@ const dustUniforms={uTime:{value:0},uWCloud:{value:1},uWDisk:{value:0},uWShell:{
       vHeat = max(vHeat, uWBH * exp(-(rb - 13.0) * 0.05) * 1.2);
       vHue = aSeed.w;
       // fade the far cloud haze slightly, keep clumps dense
-      vAlpha = 0.55 + 0.45 * sin(ph + uTime * 0.4 * spd);
-
-      // fake lensing occlusion: grains that pass behind the shadow vanish
-      if (uWBH > 0.01) {
-        vec3 toBH = uBHPos - cameraPosition;
-        float dBH = length(toBH);
-        vec3 nBH = toBH / dBH;
-        vec3 toP = pos - cameraPosition;
-        float tproj = dot(toP, nBH);
-        float bimp = length(toP - nBH * tproj);
-        float behind = smoothstep(dBH * 0.92, dBH * 1.03, tproj);
-        vAlpha *= 1.0 - behind * (1.0 - smoothstep(6.0, 10.5, bimp)) * uWBH;
-      }
+      vAlpha = (0.55 + 0.45 * sin(ph + uTime * 0.4 * spd)) * occl;
     }
   `,fragmentShader:`
     precision highp float;
