@@ -1,0 +1,15 @@
+# python build tooling (rcssmin/rjsmin live here — recreate with:
+#   python -m venv .venv && .venv/bin/pip install -r requirements-build.txt)
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# OS / editor noise
+Thumbs.db
+Desktop.ini
+.DS_Store
+.vscode/
+.idea/
+
+# NOTE: docs/ is generated but must stay tracked — GitHub Pages serves it.
