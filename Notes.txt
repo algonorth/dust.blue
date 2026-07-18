@@ -11,7 +11,12 @@ The Shedding: teal/pink/gold veils peel off into a filamentary planetary nebula
 White Dwarf: a piercing ember inside the expanding shells; the outermost planet survives
 Epilogue: A stellar clock ticks from T − 1,250,000 YR to T + 13 BILLION YR as you scroll, with a chapter timeline on the right edge, film grain, and an Instrument Serif / IBM Plex Mono editorial layer: all fonts and Three.js vendored, so it runs fully offline with no build step.
 
+Minify files before deployment within virtual environment:
 
+	python3 -m venv .venv
+	source .venv/bin/activate
+	./build.sh
+	
 TODO:
 Maybe make it more cinematic with streaking particles during transitions that the camera follows for increased epicness? (Interest curve caution?)
 

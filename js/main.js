@@ -53,6 +53,20 @@ function track(keys) {
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 const lerp = (a, b, t) => a + (b - a) * t;
 
+/* portrait compensation: the 46° FOV is vertical, so on a tall narrow
+   screen the horizontal view collapses to ~22° and side-framed chapters
+   (star opposite the text column) push the subject out of frame. Widen
+   the FOV and pull the framing offsets toward centre as aspect drops. */
+let frameK = 1;
+function applyViewport() {
+  camera.aspect = innerWidth / innerHeight;
+  const wide = clamp(Math.pow(1.45 / camera.aspect, 0.5), 1, 1.42);
+  camera.fov = 46 * wide;
+  frameK = clamp(camera.aspect / 1.45, 0.38, 1);
+  camera.updateProjectionMatrix();
+}
+applyViewport();
+
 /* ═══════════════ THE DUST — one system, five destinies ═══════════════ */
 
 const dustGeo = new THREE.BufferGeometry();
@@ -881,7 +895,7 @@ function frame() {
   // establishing shot: a 4s drift inward as the page opens
   const introK = 1 - Math.pow(Math.min(t / 4, 1), 0.7);
   const cz = T.camZ(p) + introK * 9;
-  const lx = T.lookX(p);
+  const lx = T.lookX(p) * frameK;
   camera.position.x = lx * 0.3 + T.camX(p) + mouseNDC.x * (2.2 + cz * 0.05) + Math.sin(t * 0.05) * 0.8;
   camera.position.y = T.camY(p) + mouseNDC.y * (1.4 + cz * 0.03);
   // follow-cam: during the flight home, position and gaze come from the
@@ -996,8 +1010,7 @@ function frame() {
 
 /* ————— resize ————— */
 addEventListener('resize', () => {
-  camera.aspect = innerWidth / innerHeight;
-  camera.updateProjectionMatrix();
+  applyViewport();
   renderer.setSize(innerWidth, innerHeight);
   composer.setSize(innerWidth, innerHeight);
   measureVh();
