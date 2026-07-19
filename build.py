@@ -27,7 +27,7 @@ OUT = ROOT / "docs"
 
 JS_FILES = ["js/main.js"]
 CSS_FILES = ["css/style.css"]
-COPY_FILES = ["CNAME"]
+COPY_FILES = ["CNAME", "og.jpg"]
 COPY_DIRS = ["fonts", "vendor"]  # third-party / binary — copied as-is, never minified here
 
 
