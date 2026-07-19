@@ -1027,4 +1027,4 @@ requestAnimationFrame(() => {
 frame();
 
 /* dev handle (harmless in prod) */
-window.__tby = { starUni, coronaUni, bloom, corona, star, dustUniforms, renderer, bh, bhUni };
+window.__tby = { starUni, coronaUni, bloom, corona, star, dustUniforms, renderer, bh, bhUni }; 
