@@ -163,6 +163,13 @@ body {
 #copy {
   position: absolute; top: 0; left: 0; right: 0; z-index: 2;
   pointer-events: none;
+  /* the scrims (.inner::before) bleed past the viewport; clip them HERE,
+     not on html — overflow set on the root is propagated to the viewport
+     and html's own used overflow reverts to visible (spec), so Android
+     Chrome still measures the document as content-width wide and widens
+     its layout viewport (sideways scrollbar, HUD pushed off screen).
+     x-axis only: clip does not touch y, and #copy has zero own height. */
+  overflow-x: clip;
 }
 
 .ch {
