@@ -17,6 +17,8 @@ Minify files before deployment within virtual environment:
 	source .venv/bin/activate
 	./build.sh
 	
+Note: When adding new files to deploy, don't forget to add it to COPY_FILES = ["CNAME", "og.jpg"] in build.py.
+	
 TODO:
 Maybe make it more cinematic with streaking particles during transitions that the camera follows for increased epicness? (Interest curve caution?)
 
