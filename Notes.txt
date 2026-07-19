@@ -18,6 +18,13 @@ Minify files before deployment within virtual environment:
 	./build.sh
 	
 Note: When adding new files to deploy, don't forget to add it to COPY_FILES = ["CNAME", "og.jpg"] in build.py.
+
+One-time GitHub setting, not a code change: in the repo on GitHub → Settings → Pages → Build and deployment, the branch source is currently main / / (root) — switch the folder dropdown to /docs and save.
+
+Verify: curl -s https://dust.blue/js/main.js | wc -l 
+
+Should drop from ~1,135 lines to ~1 — or with your Ten ↔ 10 title marker.
+Two side benefits of the switch: visitors download ~25% less JS/CSS/HTML, and the duplicate unbuild source stops being publicly crawlable at both paths.
 	
 TODO:
 Maybe make it more cinematic with streaking particles during transitions that the camera follows for increased epicness? (Interest curve caution?)
