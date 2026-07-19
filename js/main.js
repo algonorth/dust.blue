@@ -19,19 +19,27 @@ try {
   throw e;
 }
 
+/* viewport width comes from the root element, never window.innerWidth: if
+   anything overflows sideways, mobile browsers widen the layout viewport
+   (and innerWidth with it) — sizing the fixed canvas from innerWidth then
+   bakes that width in and the viewport can never shrink back. clientWidth
+   is immune. Height keeps tracking innerHeight so the canvas follows the
+   mobile URL bar collapsing/expanding. */
+const viewW = () => document.documentElement.clientWidth || innerWidth;
+
 const IS_TOUCH = matchMedia('(pointer: coarse)').matches;
-const IS_SMALL = innerWidth < 720;
+const IS_SMALL = viewW() < 720;
 const DPR = Math.min(devicePixelRatio || 1, IS_TOUCH ? 1.5 : 1.75);
 const DUST_COUNT = (IS_TOUCH || IS_SMALL) ? 48000 : 130000;
 
 renderer.setPixelRatio(DPR);
-renderer.setSize(innerWidth, innerHeight);
+renderer.setSize(viewW(), innerHeight);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.1;
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x030308);
-const camera = new THREE.PerspectiveCamera(46, innerWidth / innerHeight, 0.1, 900);
+const camera = new THREE.PerspectiveCamera(46, viewW() / innerHeight, 0.1, 900);
 camera.position.set(0, 4, 66);
 
 /* ————— keyframe track helper ————— */
@@ -59,7 +67,7 @@ const lerp = (a, b, t) => a + (b - a) * t;
    the FOV and pull the framing offsets toward centre as aspect drops. */
 let frameK = 1, portK = 0;
 function applyViewport() {
-  camera.aspect = innerWidth / innerHeight;
+  camera.aspect = viewW() / innerHeight;
   const wide = clamp(Math.pow(1.45 / camera.aspect, 0.5), 1, 1.42);
   camera.fov = 46 * wide;
   frameK = clamp(camera.aspect / 1.45, 0.38, 1);
@@ -682,7 +690,7 @@ scene.add(bh);
 
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
-const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.6, 0.7, 0.22);
+const bloom = new UnrealBloomPass(new THREE.Vector2(viewW(), innerHeight), 0.6, 0.7, 0.22);
 composer.addPass(bloom);
 composer.addPass(new OutputPass());
 
@@ -882,14 +890,14 @@ const zPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
 let mouseActive = false;
 
 addEventListener('pointermove', (e) => {
-  mouseTarget.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+  mouseTarget.set((e.clientX / viewW()) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
   mouseActive = true;
 }, { passive: true });
 addEventListener('pointerleave', () => { mouseActive = false; });
 addEventListener('touchmove', (e) => {
   const t = e.touches[0];
   if (t) {
-    mouseTarget.set((t.clientX / innerWidth) * 2 - 1, -(t.clientY / innerHeight) * 2 + 1);
+    mouseTarget.set((t.clientX / viewW()) * 2 - 1, -(t.clientY / innerHeight) * 2 + 1);
     mouseActive = true;
   }
 }, { passive: true });
@@ -1032,8 +1040,8 @@ function frame() {
 /* ————— resize ————— */
 addEventListener('resize', () => {
   applyViewport();
-  renderer.setSize(innerWidth, innerHeight);
-  composer.setSize(innerWidth, innerHeight);
+  renderer.setSize(viewW(), innerHeight);
+  composer.setSize(viewW(), innerHeight);
   measureVh();
   readScroll();
 });
