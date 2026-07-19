@@ -165,7 +165,7 @@ body {
 /* the opening frame centers in the *visible* viewport (svh) so the scroll
    cue isn't pushed below the fold while the mobile URL bar is showing */
 .ch-title { min-height: 100svh; }
-.ch .inner { max-width: 620px; position: relative; }
+.ch .inner { max-width: 660px; position: relative; }
 /* soft scrim so copy survives the densest dust */
 .ch .inner::before {
   content: '';
@@ -232,7 +232,11 @@ h2.huge { font-size: clamp(42px, 5.6vw, 84px); }
   font-size: 10px; letter-spacing: 0.24em; font-weight: 500;
   color: var(--accent);
   display: flex; align-items: center; gap: 10px;
+  /* one row on desktop — nowrap defeats the subpixel shrink-wrap re-wrap */
+  white-space: nowrap;
 }
+/* hint <br>s are mobile-only break points; on desktop they produce no break */
+.hint br { display: none; }
 .hint-dot {
   width: 5px; height: 5px; border-radius: 50%;
   background: var(--accent);
@@ -309,6 +313,14 @@ h2.huge { font-size: clamp(42px, 5.6vw, 84px); }
 }
 
 /* ————— responsive ————— */
+
+/* the ch08 hint needs ~645px for one row; below ~769px viewport that no
+   longer fits beside the 8vw paddings (body clips overflow-x, so nowrap
+   would truncate mid-word) — let it wrap, at the <br>'s chosen break */
+@media (max-width: 780px) {
+  .hint { white-space: normal; }
+  .hint br { display: inline; }
+}
 
 @media (max-width: 720px) {
   #timeline { display: none; }
