@@ -4,7 +4,7 @@ import os
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
-PORT = 4321
+PORT = int(os.environ.get('PORT', 4321))
 
 
 class Handler(SimpleHTTPRequestHandler):

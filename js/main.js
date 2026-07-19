@@ -57,12 +57,17 @@ const lerp = (a, b, t) => a + (b - a) * t;
    screen the horizontal view collapses to ~22° and side-framed chapters
    (star opposite the text column) push the subject out of frame. Widen
    the FOV and pull the framing offsets toward centre as aspect drops. */
-let frameK = 1;
+let frameK = 1, portK = 0;
 function applyViewport() {
   camera.aspect = innerWidth / innerHeight;
   const wide = clamp(Math.pow(1.45 / camera.aspect, 0.5), 1, 1.42);
   camera.fov = 46 * wide;
   frameK = clamp(camera.aspect / 1.45, 0.38, 1);
+  // portrait dolly-back: even with the wider FOV, a phone's horizontal view
+  // is ~half the desktop one — the main-sequence planet lanes get clipped.
+  // portK scales an extra camera pull (keyed in T.camZPort) that is zero on
+  // landscape/desktop and grows as the viewport narrows.
+  portK = clamp(1 - camera.aspect / 1.45, 0, 0.7);
   camera.updateProjectionMatrix();
 }
 applyViewport();
@@ -689,6 +694,10 @@ const P_END = 1420 / 1200;
 
 const T = {
   camZ: track([[0, 66], [0.10, 58], [0.24, 40], [0.34, 26], [0.385, 22], [0.44, 20], [0.52, 21], [0.62, 36], [0.70, 50], [0.78, 58], [0.86, 46], [0.93, 56], [0.98, 64], [1.02, -80], [1.08, -338], [1.115, -364], [1.14, -120], [1.17, 46], [1.1833, 58]]),
+  /* portrait-only extra dolly (× portK): the main sequence needs width — at
+     z≈20 a phone sees ±6 world units, clipping the 4.9 orbit and hiding the
+     11.6 one entirely. +8 × portK(≈0.68 on a phone) restores the lanes. */
+  camZPort: track([[0.40, 0], [0.46, 8], [0.55, 8], [0.62, 0]]),
   camY: track([[0, 4], [0.24, 7], [0.34, 3], [0.385, 1.2], [0.52, 0.9], [0.62, 4], [0.70, 7], [0.78, 9], [0.86, 1.4], [0.96, 5], [1.02, 4], [1.08, 4.4], [1.115, 4.8], [1.15, 4], [1.1833, 6]]),
   /* frame the star opposite each chapter's text column */
   lookX: track([[0.40, 0], [0.44, -6.5], [0.56, -6.5], [0.61, 7.5], [0.68, 8], [0.71, 4], [0.745, -6], [0.78, -6], [0.82, 3.5], [0.88, 3.5], [0.93, 0], [0.99, 0], [1.03, -14], [1.09, -8], [1.115, -3.5], [1.14, 0]]),
@@ -833,6 +842,18 @@ function updateSections(pRaw) {
   }
 }
 
+/* on touch there is no cursor — the same finger that scrolls also drags
+   gravity / radiation pressure, so the hints should say so */
+if (IS_TOUCH) {
+  for (const hint of document.querySelectorAll('.hint')) {
+    for (const node of hint.childNodes) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        node.nodeValue = node.nodeValue.replace('YOUR CURSOR', 'YOUR FINGER');
+      }
+    }
+  }
+}
+
 /* ═══════════════ INPUT ═══════════════ */
 
 let pRaw = 0, p = 0, scrollVel = 0;
@@ -894,7 +915,7 @@ function frame() {
   mouseNDC.lerp(mouseTarget, Math.min(1, dt * 5));
   // establishing shot: a 4s drift inward as the page opens
   const introK = 1 - Math.pow(Math.min(t / 4, 1), 0.7);
-  const cz = T.camZ(p) + introK * 9;
+  const cz = T.camZ(p) + introK * 9 + T.camZPort(p) * portK;
   const lx = T.lookX(p) * frameK;
   camera.position.x = lx * 0.3 + T.camX(p) + mouseNDC.x * (2.2 + cz * 0.05) + Math.sin(t * 0.05) * 0.8;
   camera.position.y = T.camY(p) + mouseNDC.y * (1.4 + cz * 0.03);

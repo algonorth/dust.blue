@@ -320,6 +320,10 @@ h2.huge { font-size: clamp(42px, 5.6vw, 84px); }
 @media (max-width: 780px) {
   .hint { white-space: normal; }
   .hint br { display: inline; }
+  /* wrapped hints: pin the pulse dot to the first line instead of letting
+     flex centre it against the whole 2–3 line block */
+  .hint { align-items: flex-start; }
+  .hint-dot { flex-shrink: 0; margin-top: 4px; }
 }
 
 @media (max-width: 720px) {
@@ -328,12 +332,36 @@ h2.huge { font-size: clamp(42px, 5.6vw, 84px); }
   #hud-top { padding-top: max(16px, env(safe-area-inset-top, 0px)); }
   #hud-bottom { padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
   #age-value { min-width: 0; }
-  #hud-bottom .chapter { display: none; }
+  /* keep the chapter readout — it's the only wayfinding left once the
+     timeline is gone. The clock value is self-explanatory, so drop its
+     label to make room; wrap is the graceful fallback on tiny screens */
+  #hud-bottom { flex-wrap: wrap; row-gap: 5px; }
+  .age-label { display: none; }
+  #chapter-name { min-width: 0; }
   .hud-right { display: none; }
   .ch { padding: 0 7vw; }
   h2 { font-size: clamp(32px, 9vw, 44px); }
   h2.huge { font-size: clamp(34px, 9.5vw, 48px); }
   .body { font-size: 12px; }
+  /* the star can sit behind the full-width text column here (desktop frames
+     it beside the column instead) — lean on the scrim a little harder */
+  .ch .inner::before { background: radial-gradient(ellipse at 50% 46%, rgba(3, 3, 8, 0.76), rgba(3, 3, 8, 0.36) 40%, transparent 60%); }
+  .ch-title .inner::before,
+  .center-ch .inner::before { background: radial-gradient(ellipse at 50% 46%, rgba(3, 3, 8, 0.5), rgba(3, 3, 8, 0.2) 40%, transparent 58%); }
+}
+
+/* short viewports (landscape phones, squat windows): the width queries never
+   fire, so desktop type on a ~375px-tall screen clips the title and ch08 and
+   runs the copy into the HUD bands — scale type and rhythm with height */
+@media (max-height: 540px) {
+  h1.title { font-size: clamp(44px, 11vh, 110px); margin: 8px 0 18px; }
+  h2, h2.huge { font-size: clamp(24px, 7.5vh, 44px); margin-bottom: 14px; }
+  .kicker { margin-bottom: 12px; }
+  .body { line-height: 1.6; margin-bottom: 10px; }
+  .sub { margin-bottom: 26px; }
+  .hint { margin-top: 16px; }
+  .fin { margin-top: 22px; }
+  .cue-line { height: 36px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
