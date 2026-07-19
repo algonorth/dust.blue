@@ -1093,21 +1093,25 @@ function toggleSound() {
   try { localStorage.setItem('tby-sound', musicOn ? 'on' : 'off'); } catch {}
   if (musicOn) {
     music.play().then(() => fadeTo(1, FADE_IN))
-      .catch(() => { musicOn = false; setSoundUI(false); });
+      .catch(() => { musicOn = false; soundResumed = false; setSoundUI(false); });
   } else {
     fadeTo(0, FADE_OUT);
   }
 }
 soundBtn.addEventListener('click', toggleSound);
 
-/* returning visitor who left with sound on: still no autoplay allowed, but
-   their first gesture of any kind restarts the music without a prompt */
+/* the first tap, click or keypress anywhere fades the music in — unless the
+   visitor explicitly turned sound off last time. scrolling never counts as a
+   gesture, so for wheel-only desktop visitors the toggle is the way in */
 const savedSound = (() => {
   try { return localStorage.getItem('tby-sound'); } catch { return null; }
 })();
-if (savedSound === 'on') {
+if (savedSound !== 'off') {
   const resume = (e) => {
     if (soundResumed) return;
+    /* browsers grant audio at touchend, not at a touch's pointerdown — defer
+       to the touchend listener or play() would fire too early and be blocked */
+    if (e.type === 'pointerdown' && e.pointerType !== 'mouse') return;
     if (soundBtn.contains(e.target)) return; // the button's own click handles it
     toggleSound();
   };
