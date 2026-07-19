@@ -1046,6 +1046,83 @@ addEventListener('resize', () => {
   readScroll();
 });
 
+/* ═══════════════ SOUND ═══════════════ */
+
+/* browsers only allow audible playback after a user gesture, and scrolling
+   doesn't count — so the toggle click is the one place audio may start */
+const MUSIC_SRC = 'bgm/abyss_bloom.mp3';
+const MUSIC_VOL = 0.55; // ceiling — the track never plays louder than this
+const FADE_IN = 5;      // seconds; a slow bloom, like everything here
+const FADE_OUT = 0.8;   // mute should feel immediate, but not click
+
+const soundBtn = document.getElementById('sound');
+let music = null, musicOn = false, musicGain = 0, fadeRaf = 0;
+
+function fadeTo(target, seconds) {
+  cancelAnimationFrame(fadeRaf);
+  const from = musicGain, t0 = performance.now();
+  (function tick(now) {
+    const k = Math.min((now - t0) / (seconds * 1000), 1);
+    musicGain = from + (target - from) * k;
+    music.volume = musicGain * MUSIC_VOL;
+    if (k < 1) fadeRaf = requestAnimationFrame(tick);
+    else if (target === 0) music.pause();
+  })(t0);
+}
+
+function setSoundUI(on) {
+  soundBtn.setAttribute('aria-pressed', String(on));
+  soundBtn.textContent = on ? 'SOUND ON' : 'SOUND OFF';
+}
+
+let soundResumed = false;
+function toggleSound() {
+  soundResumed = true;
+  if (!music) {
+    music = new Audio(MUSIC_SRC);
+    music.loop = true;
+    music.volume = 0;
+    music.addEventListener('error', () => {
+      console.warn(`music: could not load ${MUSIC_SRC}`);
+      musicOn = false;
+      setSoundUI(false);
+    });
+  }
+  musicOn = !musicOn;
+  setSoundUI(musicOn);
+  try { localStorage.setItem('tby-sound', musicOn ? 'on' : 'off'); } catch {}
+  if (musicOn) {
+    music.play().then(() => fadeTo(1, FADE_IN))
+      .catch(() => { musicOn = false; setSoundUI(false); });
+  } else {
+    fadeTo(0, FADE_OUT);
+  }
+}
+soundBtn.addEventListener('click', toggleSound);
+
+/* returning visitor who left with sound on: still no autoplay allowed, but
+   their first gesture of any kind restarts the music without a prompt */
+const savedSound = (() => {
+  try { return localStorage.getItem('tby-sound'); } catch { return null; }
+})();
+if (savedSound === 'on') {
+  const resume = (e) => {
+    if (soundResumed) return;
+    if (soundBtn.contains(e.target)) return; // the button's own click handles it
+    toggleSound();
+  };
+  addEventListener('pointerdown', resume);
+  addEventListener('keydown', resume);
+  addEventListener('touchend', resume);
+}
+
+/* don't keep humming in a background tab */
+document.addEventListener('visibilitychange', () => {
+  if (!music || !musicOn) return;
+  if (document.hidden) music.pause();
+  else music.play().catch(() => {});
+});
+
 /* ————— overture: reveal title once fonts are in ————— */
 if (history.scrollRestoration) history.scrollRestoration = 'manual';
 scrollTo(0, 0);
@@ -1056,4 +1133,4 @@ requestAnimationFrame(() => {
 frame();
 
 /* dev handle (harmless in prod) */
-window.__tby = { starUni, coronaUni, bloom, corona, star, dustUniforms, renderer, bh, bhUni }; 
+window.__tby = { starUni, coronaUni, bloom, corona, star, dustUniforms, renderer, bh, bhUni, get music() { return music; } }; 

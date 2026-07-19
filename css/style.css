@@ -111,6 +111,36 @@ body {
 
 .wordmark { color: var(--ivory); }
 
+/* ————— sound toggle ————— */
+
+/* the only interactive element in the HUD — the header keeps
+   pointer-events: none so the canvas underneath stays draggable */
+#hud-top { justify-content: flex-start; gap: 34px; }
+.wordmark { margin-right: auto; }
+#sound {
+  pointer-events: auto;
+  background: none; border: 0; padding: 0;
+  font: inherit; letter-spacing: inherit;
+  color: var(--ivory-dim);
+  cursor: pointer;
+  transition: color 0.35s;
+  -webkit-tap-highlight-color: transparent;
+}
+#sound:hover, #sound[aria-pressed="true"] { color: var(--ivory); }
+#sound::before {
+  content: '';
+  display: inline-block;
+  width: 5px; height: 5px; border-radius: 50%;
+  margin-right: 8px;
+  background: var(--ivory-faint);
+  transition: background 0.35s, box-shadow 0.35s;
+}
+#sound[aria-pressed="true"]::before {
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+  animation: pulse 2s ease-in-out infinite;
+}
+
 #hud-bottom .age { display: flex; gap: 14px; align-items: baseline; }
 .age-label { color: var(--ivory-faint); }
 #age-value {

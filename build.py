@@ -28,7 +28,7 @@ OUT = ROOT / "docs"
 JS_FILES = ["js/main.js"]
 CSS_FILES = ["css/style.css"]
 COPY_FILES = ["CNAME", "og.jpg"]
-COPY_DIRS = ["fonts", "vendor"]  # third-party / binary — copied as-is, never minified here
+COPY_DIRS = ["fonts", "vendor", "bgm"]  # third-party / binary — copied as-is, never minified here
 
 
 def minify_html(src: str) -> str:
