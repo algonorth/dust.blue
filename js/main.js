@@ -149,8 +149,15 @@ const dustGeo = new THREE.BufferGeometry();
   dustGeo.setAttribute('position', new THREE.BufferAttribute(cloud.slice(), 3)); // required, unused
 }
 
+/* click/tap shockwaves — a fixed pool, written round-robin, so mashing the
+   screen just recycles the oldest ring instead of allocating anything.
+   xyz = origin (world), w = birth time (uTime clock); dead slots sit at -1e3 */
+const MAX_SHOCKS = 8;
+const shockPool = Array.from({ length: MAX_SHOCKS }, () => new THREE.Vector4(0, 0, 0, -1e3));
+
 const dustUniforms = {
   uTime: { value: 0 },
+  uShock: { value: shockPool },
   uWCloud: { value: 1 },
   uWDisk: { value: 0 },
   uWShell: { value: 0 },
@@ -186,7 +193,8 @@ const dustMat = new THREE.ShaderMaterial({
     attribute vec4 aSeed;
     uniform float uTime, uWCloud, uWDisk, uWShell, uShellR, uConsume, uSpinPhase, uTurb, uSize, uMouseF, uHeat, uWBH, uHomeRot;
     uniform vec3 uMouse, uBHPos;
-    varying float vAlpha, vHeat, vHue, vBillow, vDop;
+    uniform vec4 uShock[${MAX_SHOCKS}];
+    varying float vAlpha, vHeat, vHue, vBillow, vDop, vShock;
 
     void main() {
       float ph = aSeed.x;
@@ -241,6 +249,24 @@ const dustMat = new THREE.ShaderMaterial({
       vec3 swirl = normalize(cross(vec3(0.0, 0.0, 1.0), dm + 0.001));
       pos += (normalize(dm + 0.001) * f + swirl * f * 0.7);
 
+      // — shockwaves: each live ring shoves grains outward at its front and
+      //   lights them up. Per-wave amplitude decays and the total glow is
+      //   clamped later, so overlapping spam stays pretty instead of blowing out
+      vShock = 0.0;
+      for (int i = 0; i < ${MAX_SHOCKS}; i++) {
+        float age = uTime - uShock[i].w;
+        if (age < 0.0 || age > 2.2) continue;
+        vec3 dsw = pos - uShock[i].xyz;
+        float dd = length(dsw) + 0.001;
+        float R = age * 34.0;                       // wavefront radius
+        float width = 2.2 + age * 5.0;              // front widens as it travels
+        float q = (dd - R) / width;
+        float ring = exp(-q * q);
+        float amp = exp(-age * 2.4);                // each wave dies in ~2s
+        pos += (dsw / dd) * ring * amp * 5.5;
+        vShock += ring * amp;
+      }
+
       // gravitational lensing: the disk is flat, but light from grains
       // behind the hole bends around it — same physics that lifts the
       // raymarched disk's far side into the arcs. Displace the apparent
@@ -288,7 +314,7 @@ const dustMat = new THREE.ShaderMaterial({
     precision highp float;
     uniform vec3 uColA, uColB, uShell1, uShell2, uShell3;
     uniform float uAlpha, uWShell;
-    varying float vAlpha, vHeat, vHue, vBillow, vDop;
+    varying float vAlpha, vHeat, vHue, vBillow, vDop, vShock;
 
     void main() {
       vec2 c = gl_PointCoord - 0.5;
@@ -307,7 +333,12 @@ const dustMat = new THREE.ShaderMaterial({
       float grainA = (fall * 0.55 + core) * vAlpha;
       float billowA = pow(smoothstep(0.5, 0.0, d), 1.6) * 0.085 * (0.5 + vAlpha) * (1.0 - vHeat * 0.8);
       float a = mix(grainA, billowA, vBillow) * uAlpha;
-      gl_FragColor = vec4(col * (1.0 + vHeat * 2.0 * (1.0 - vBillow) + core) * vDop, a * clamp(vDop, 0.7, 1.2));
+      // shock flash: warm-white burn at the wavefront, capped so stacked
+      // rings from fast tapping saturate gracefully under additive blending
+      float shock = clamp(vShock, 0.0, 1.4);
+      col += vec3(1.15, 0.95, 0.7) * shock * 0.9;
+      a = min(a + shock * fall * 0.28 * uAlpha * (1.0 - vBillow), 1.0);
+      gl_FragColor = vec4(col * (1.0 + vHeat * 2.0 * (1.0 - vBillow) + core + shock * 1.2) * vDop, a * clamp(vDop, 0.7, 1.2));
     }
   `,
 });
@@ -903,6 +934,28 @@ addEventListener('touchmove', (e) => {
 }, { passive: true });
 addEventListener('touchend', () => { mouseActive = false; });
 
+/* — shockwaves: every click/tap drops a ring into the pool. Round-robin
+   overwrite means 20 taps a second just recycles the oldest of the 8 live
+   waves — no allocation, no queue, no way to break it */
+let shockIdx = 0, shockPulse = 0;
+const _shockNDC = new THREE.Vector2();
+const _shockHit = new THREE.Vector3();
+function spawnShock(clientX, clientY) {
+  _shockNDC.set((clientX / viewW()) * 2 - 1, -(clientY / innerHeight) * 2 + 1);
+  raycaster.setFromCamera(_shockNDC, camera);
+  if (!raycaster.ray.intersectPlane(zPlane, _shockHit)) {
+    // z=0 plane is behind the camera (black-hole detour) — burst mid-air instead
+    _shockHit.copy(raycaster.ray.direction).multiplyScalar(60).add(raycaster.ray.origin);
+  }
+  shockPool[shockIdx].set(_shockHit.x, _shockHit.y, _shockHit.z, clock.elapsedTime);
+  shockIdx = (shockIdx + 1) % MAX_SHOCKS;
+  shockPulse = Math.min(shockPulse + 0.16, 0.45); // bloom kick, spam-capped
+}
+addEventListener('pointerdown', (e) => {
+  if (e.target.closest('a, button')) return; // UI clicks don't detonate
+  spawnShock(e.clientX, e.clientY);
+});
+
 /* ═══════════════ LOOP ═══════════════ */
 
 const clock = new THREE.Clock();
@@ -1028,8 +1081,9 @@ function frame() {
     bh.quaternion.copy(camera.quaternion);
   }
 
-  // bloom breathes with the story
-  bloom.strength = T.bloomS(p) + Math.min(scrollVel * 1.2, 0.35);
+  // bloom breathes with the story — plus a short pop per shockwave
+  shockPulse = Math.max(0, shockPulse - dt * 1.4);
+  bloom.strength = T.bloomS(p) + Math.min(scrollVel * 1.2, 0.35) + shockPulse;
 
   updateHUD(p);
   updateSections(pRaw);

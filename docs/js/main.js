@@ -6,14 +6,15 @@ applyViewport();const dustGeo=new THREE.BufferGeometry();{const cloud=new Float3
 const gauss=()=>(Math.random()+Math.random()+Math.random()-1.5)*0.8;for(let i=0;i<DUST_COUNT;i++){if(Math.random()<0.82){const c=clumps[(Math.random()*NCLUMP)|0];cloud[i*3]=c.x+gauss()*c.r;cloud[i*3+1]=c.y+gauss()*c.r*0.8;cloud[i*3+2]=c.z+gauss()*c.r;}else{cloud[i*3]=(Math.random()-0.5)*110;cloud[i*3+1]=(Math.random()-0.5)*60;cloud[i*3+2]=(Math.random()-0.5)*80;}
 const rr=1.6+30*Math.pow(Math.random(),1.6);const arm=Math.random()<0.62?(Math.random()<0.5?0:Math.PI):Math.random()*Math.PI*2;const ang=arm+rr*0.16+(Math.random()-0.5)*1.1;disk[i*3]=Math.cos(ang)*rr;disk[i*3+1]=(Math.random()-0.5)*(0.4+rr*0.09)*(Math.random()<0.08?4:1);disk[i*3+2]=Math.sin(ang)*rr;const u=Math.random()*2-1,ph=Math.random()*Math.PI*2;const sxy=Math.sqrt(1-u*u);const layerPick=Math.random();const layer=layerPick<0.4?0.52:layerPick<0.75?0.78:1.0;const pinch=1.0+Math.abs(u)*0.55;const fil=1.0+0.16*Math.sin(ph*5.0+u*7.0)+0.07*Math.sin(ph*11.0-u*13.0);shell[i*3]=sxy*Math.cos(ph)*layer*fil;shell[i*3+1]=u*layer*pinch*fil;shell[i*3+2]=sxy*Math.sin(ph)*layer*fil;seed[i*4]=Math.random()*Math.PI*2;seed[i*4+1]=0.5+Math.random();seed[i*4+2]=0.4+Math.pow(Math.random(),2.2)*1.8;seed[i*4+3]=layerPick;}
 dustGeo.setAttribute('aCloud',new THREE.BufferAttribute(cloud,3));dustGeo.setAttribute('aDisk',new THREE.BufferAttribute(disk,3));dustGeo.setAttribute('aShell',new THREE.BufferAttribute(shell,3));dustGeo.setAttribute('aSeed',new THREE.BufferAttribute(seed,4));dustGeo.setAttribute('position',new THREE.BufferAttribute(cloud.slice(),3));}
-const dustUniforms={uTime:{value:0},uWCloud:{value:1},uWDisk:{value:0},uWShell:{value:0},uShellR:{value:6},uHomeRot:{value:0},uWBH:{value:0},uBHPos:{value:new THREE.Vector3(0,0,-400)},uConsume:{value:0},uSpinPhase:{value:0},uTurb:{value:1.6},uAlpha:{value:0.9},uHeat:{value:0},uSize:{value:DPR*(IS_SMALL?56:76)},uMouse:{value:new THREE.Vector3(999,999,0)},uMouseF:{value:-2.2},uColA:{value:new THREE.Color(0x2a3550)},uColB:{value:new THREE.Color(0x6b7fb0)},uShell1:{value:new THREE.Color(0x53eccd)},uShell2:{value:new THREE.Color(0xff6f91)},uShell3:{value:new THREE.Color(0xffc46b)},};const dustMat=new THREE.ShaderMaterial({uniforms:dustUniforms,transparent:true,depthWrite:false,depthTest:true,blending:THREE.AdditiveBlending,vertexShader:`
+const MAX_SHOCKS=8;const shockPool=Array.from({length:MAX_SHOCKS},()=>new THREE.Vector4(0,0,0,-1e3));const dustUniforms={uTime:{value:0},uShock:{value:shockPool},uWCloud:{value:1},uWDisk:{value:0},uWShell:{value:0},uShellR:{value:6},uHomeRot:{value:0},uWBH:{value:0},uBHPos:{value:new THREE.Vector3(0,0,-400)},uConsume:{value:0},uSpinPhase:{value:0},uTurb:{value:1.6},uAlpha:{value:0.9},uHeat:{value:0},uSize:{value:DPR*(IS_SMALL?56:76)},uMouse:{value:new THREE.Vector3(999,999,0)},uMouseF:{value:-2.2},uColA:{value:new THREE.Color(0x2a3550)},uColB:{value:new THREE.Color(0x6b7fb0)},uShell1:{value:new THREE.Color(0x53eccd)},uShell2:{value:new THREE.Color(0xff6f91)},uShell3:{value:new THREE.Color(0xffc46b)},};const dustMat=new THREE.ShaderMaterial({uniforms:dustUniforms,transparent:true,depthWrite:false,depthTest:true,blending:THREE.AdditiveBlending,vertexShader:`
     attribute vec3 aCloud;
     attribute vec3 aDisk;
     attribute vec3 aShell;
     attribute vec4 aSeed;
     uniform float uTime, uWCloud, uWDisk, uWShell, uShellR, uConsume, uSpinPhase, uTurb, uSize, uMouseF, uHeat, uWBH, uHomeRot;
     uniform vec3 uMouse, uBHPos;
-    varying float vAlpha, vHeat, vHue, vBillow, vDop;
+    uniform vec4 uShock[${MAX_SHOCKS}];
+    varying float vAlpha, vHeat, vHue, vBillow, vDop, vShock;
 
     void main() {
       float ph = aSeed.x;
@@ -68,6 +69,24 @@ const dustUniforms={uTime:{value:0},uWCloud:{value:1},uWDisk:{value:0},uWShell:{
       vec3 swirl = normalize(cross(vec3(0.0, 0.0, 1.0), dm + 0.001));
       pos += (normalize(dm + 0.001) * f + swirl * f * 0.7);
 
+      // — shockwaves: each live ring shoves grains outward at its front and
+      //   lights them up. Per-wave amplitude decays and the total glow is
+      //   clamped later, so overlapping spam stays pretty instead of blowing out
+      vShock = 0.0;
+      for (int i = 0; i < ${MAX_SHOCKS}; i++) {
+        float age = uTime - uShock[i].w;
+        if (age < 0.0 || age > 2.2) continue;
+        vec3 dsw = pos - uShock[i].xyz;
+        float dd = length(dsw) + 0.001;
+        float R = age * 34.0;                       // wavefront radius
+        float width = 2.2 + age * 5.0;              // front widens as it travels
+        float q = (dd - R) / width;
+        float ring = exp(-q * q);
+        float amp = exp(-age * 2.4);                // each wave dies in ~2s
+        pos += (dsw / dd) * ring * amp * 5.5;
+        vShock += ring * amp;
+      }
+
       // gravitational lensing: the disk is flat, but light from grains
       // behind the hole bends around it — same physics that lifts the
       // raymarched disk's far side into the arcs. Displace the apparent
@@ -114,7 +133,7 @@ const dustUniforms={uTime:{value:0},uWCloud:{value:1},uWDisk:{value:0},uWShell:{
     precision highp float;
     uniform vec3 uColA, uColB, uShell1, uShell2, uShell3;
     uniform float uAlpha, uWShell;
-    varying float vAlpha, vHeat, vHue, vBillow, vDop;
+    varying float vAlpha, vHeat, vHue, vBillow, vDop, vShock;
 
     void main() {
       vec2 c = gl_PointCoord - 0.5;
@@ -133,7 +152,12 @@ const dustUniforms={uTime:{value:0},uWCloud:{value:1},uWDisk:{value:0},uWShell:{
       float grainA = (fall * 0.55 + core) * vAlpha;
       float billowA = pow(smoothstep(0.5, 0.0, d), 1.6) * 0.085 * (0.5 + vAlpha) * (1.0 - vHeat * 0.8);
       float a = mix(grainA, billowA, vBillow) * uAlpha;
-      gl_FragColor = vec4(col * (1.0 + vHeat * 2.0 * (1.0 - vBillow) + core) * vDop, a * clamp(vDop, 0.7, 1.2));
+      // shock flash: warm-white burn at the wavefront, capped so stacked
+      // rings from fast tapping saturate gracefully under additive blending
+      float shock = clamp(vShock, 0.0, 1.4);
+      col += vec3(1.15, 0.95, 0.7) * shock * 0.9;
+      a = min(a + shock * fall * 0.28 * uAlpha * (1.0 - vBillow), 1.0);
+      gl_FragColor = vec4(col * (1.0 + vHeat * 2.0 * (1.0 - vBillow) + core + shock * 1.2) * vDop, a * clamp(vDop, 0.7, 1.2));
     }
   `,});const dust=new THREE.Points(dustGeo,dustMat);dust.frustumCulled=false;dust.renderOrder=5;scene.add(dust);const starGeo=new THREE.BufferGeometry();{const N=2600;const pos=new Float32Array(N*3);const s=new Float32Array(N*2);for(let i=0;i<N;i++){const u=Math.random()*2-1,ph=Math.random()*Math.PI*2;const sxy=Math.sqrt(1-u*u),R=380+Math.random()*120;pos[i*3]=sxy*Math.cos(ph)*R;pos[i*3+1]=u*R;pos[i*3+2]=sxy*Math.sin(ph)*R;s[i*2]=Math.random();s[i*2+1]=0.4+Math.pow(Math.random(),3)*2.2;}
 starGeo.setAttribute('position',new THREE.BufferAttribute(pos,3));starGeo.setAttribute('aS',new THREE.BufferAttribute(s,2));}
@@ -390,11 +414,13 @@ const sections=[...document.querySelectorAll('.ch')].map((el)=>{const top=parseF
 if(IS_TOUCH){for(const hint of document.querySelectorAll('.hint')){for(const node of hint.childNodes){if(node.nodeType===Node.TEXT_NODE){node.nodeValue=node.nodeValue.replace('YOUR CURSOR','YOUR FINGER');}}}}
 let pRaw=0,p=0,scrollVel=0;const scrollSpace=document.getElementById('scroll-space');let pxPerVh=innerHeight/100;function measureVh(){const h=scrollSpace.offsetHeight/1520;if(h>0)pxPerVh=h;}
 function readScroll(){const denom=pxPerVh*1200;pRaw=denom>0?clamp(scrollY/denom,0,P_END):0;}
-measureVh();addEventListener('scroll',readScroll,{passive:true});readScroll();const mouseNDC=new THREE.Vector2(0,0);const mouseTarget=new THREE.Vector2(0,0);const mouseWorld=new THREE.Vector3(999,999,0);const raycaster=new THREE.Raycaster();const zPlane=new THREE.Plane(new THREE.Vector3(0,0,1),0);let mouseActive=false;addEventListener('pointermove',(e)=>{mouseTarget.set((e.clientX/viewW())*2-1,-(e.clientY/innerHeight)*2+1);mouseActive=true;},{passive:true});addEventListener('pointerleave',()=>{mouseActive=false;});addEventListener('touchmove',(e)=>{const t=e.touches[0];if(t){mouseTarget.set((t.clientX/viewW())*2-1,-(t.clientY/innerHeight)*2+1);mouseActive=true;}},{passive:true});addEventListener('touchend',()=>{mouseActive=false;});const clock=new THREE.Clock();let lastP=0;let flashT=0,lastRawFlash=0;function frame(){requestAnimationFrame(frame);const dt=Math.min(clock.getDelta(),0.05);const t=clock.elapsedTime;p+=(pRaw-p)*Math.min(1,dt*4.5);scrollVel=lerp(scrollVel,Math.abs(p-lastP)/Math.max(dt,1e-4),0.12);lastP=p;mouseNDC.lerp(mouseTarget,Math.min(1,dt*5));const introK=1-Math.pow(Math.min(t/4,1),0.7);const cz=T.camZ(p)+introK*9+T.camZPort(p)*portK;const lx=T.lookX(p)*frameK;camera.position.x=lx*0.3+T.camX(p)+mouseNDC.x*(2.2+cz*0.05)+Math.sin(t*0.05)*0.8;camera.position.y=T.camY(p)+mouseNDC.y*(1.4+cz*0.03);let czF=cz,lzF=T.lookZ(p);const fw=T.follow(p);if(fw>0){const wb=T.wBH(p),ws=T.wShell(p);const swarmZ=-400*(wb/(wb+ws+0.001));czF=lerp(czF,swarmZ+55,fw);lzF=lerp(lzF,swarmZ*1.15,fw);}
+measureVh();addEventListener('scroll',readScroll,{passive:true});readScroll();const mouseNDC=new THREE.Vector2(0,0);const mouseTarget=new THREE.Vector2(0,0);const mouseWorld=new THREE.Vector3(999,999,0);const raycaster=new THREE.Raycaster();const zPlane=new THREE.Plane(new THREE.Vector3(0,0,1),0);let mouseActive=false;addEventListener('pointermove',(e)=>{mouseTarget.set((e.clientX/viewW())*2-1,-(e.clientY/innerHeight)*2+1);mouseActive=true;},{passive:true});addEventListener('pointerleave',()=>{mouseActive=false;});addEventListener('touchmove',(e)=>{const t=e.touches[0];if(t){mouseTarget.set((t.clientX/viewW())*2-1,-(t.clientY/innerHeight)*2+1);mouseActive=true;}},{passive:true});addEventListener('touchend',()=>{mouseActive=false;});let shockIdx=0,shockPulse=0;const _shockNDC=new THREE.Vector2();const _shockHit=new THREE.Vector3();function spawnShock(clientX,clientY){_shockNDC.set((clientX/viewW())*2-1,-(clientY/innerHeight)*2+1);raycaster.setFromCamera(_shockNDC,camera);if(!raycaster.ray.intersectPlane(zPlane,_shockHit)){_shockHit.copy(raycaster.ray.direction).multiplyScalar(60).add(raycaster.ray.origin);}
+shockPool[shockIdx].set(_shockHit.x,_shockHit.y,_shockHit.z,clock.elapsedTime);shockIdx=(shockIdx+1)%MAX_SHOCKS;shockPulse=Math.min(shockPulse+0.16,0.45);}
+addEventListener('pointerdown',(e)=>{if(e.target.closest('a, button'))return;spawnShock(e.clientX,e.clientY);});const clock=new THREE.Clock();let lastP=0;let flashT=0,lastRawFlash=0;function frame(){requestAnimationFrame(frame);const dt=Math.min(clock.getDelta(),0.05);const t=clock.elapsedTime;p+=(pRaw-p)*Math.min(1,dt*4.5);scrollVel=lerp(scrollVel,Math.abs(p-lastP)/Math.max(dt,1e-4),0.12);lastP=p;mouseNDC.lerp(mouseTarget,Math.min(1,dt*5));const introK=1-Math.pow(Math.min(t/4,1),0.7);const cz=T.camZ(p)+introK*9+T.camZPort(p)*portK;const lx=T.lookX(p)*frameK;camera.position.x=lx*0.3+T.camX(p)+mouseNDC.x*(2.2+cz*0.05)+Math.sin(t*0.05)*0.8;camera.position.y=T.camY(p)+mouseNDC.y*(1.4+cz*0.03);let czF=cz,lzF=T.lookZ(p);const fw=T.follow(p);if(fw>0){const wb=T.wBH(p),ws=T.wShell(p);const swarmZ=-400*(wb/(wb+ws+0.001));czF=lerp(czF,swarmZ+55,fw);lzF=lerp(lzF,swarmZ*1.15,fw);}
 camera.position.z=czF;camera.lookAt(lx,T.lookY(p),lzF);const roll=T.camRoll(p);if(roll!==0)camera.rotateZ(roll);if(mouseActive){raycaster.setFromCamera(mouseNDC,camera);const hit=raycaster.ray.intersectPlane(zPlane,mouseWorld);if(!hit)mouseWorld.set(999,999,0);}else{mouseWorld.set(999,999,0);}
 dustUniforms.uMouse.value.lerp(mouseWorld,Math.min(1,dt*6));dustUniforms.uTime.value=t;dustUniforms.uWCloud.value=T.wCloud(p);dustUniforms.uWDisk.value=T.wDisk(p);dustUniforms.uWShell.value=T.wShell(p);dustUniforms.uShellR.value=T.shellR(p);dustUniforms.uConsume.value=T.consume(p);dustUniforms.uSpinPhase.value=T.spinPhase(p);dustUniforms.uTurb.value=T.turb(p)+Math.min(scrollVel*14,2.2);dustUniforms.uAlpha.value=T.dustAlpha(p);dustUniforms.uHeat.value=T.heat(p);dustUniforms.uMouseF.value=T.mouseF(p);dustUniforms.uWBH.value=T.wBH(p);dustUniforms.uHomeRot.value=t*0.004+p*0.35;dustPalette(p);const sr=T.starR(p);star.scale.setScalar(sr);star.visible=sr>0.01;starUni.uTime.value=t;starUni.uTemp.value=T.starTemp(p);starUni.uLum.value=T.starLum(p);starUni.uWobble.value=T.wobble(p);starUni.uSpots.value=T.spots(p);star.rotation.y=t*0.02;coronaUni.uTime.value=t;coronaUni.uOpacity.value=T.coronaOp(p);coronaUni.uInner.value=sr/Math.max(T.coronaScale(p),0.01);coronaColor(T.starTemp(p));corona.scale.setScalar(Math.max(T.coronaScale(p),0.01));corona.quaternion.copy(camera.quaternion);corona.visible=coronaUni.uOpacity.value>0.01;const pa=T.planetA(p);planetGroup.visible=pa>0.01;for(const pl of PLANETS){const engulf=clamp((sr*1.05-pl.orbit*0.78)/(pl.orbit*0.3),0,1);pl.swallow=Math.max(pl.swallow,engulf);if(p<0.4)pl.swallow=0;const alive=1-pl.swallow;pl.r=pl.orbit*(1-pl.swallow*0.85);const a=pl.phase+t*pl.speed*(1+pl.swallow*3);pl.mesh.position.set(Math.cos(a)*pl.r,0,Math.sin(a)*pl.r);pl.mesh.scale.setScalar(Math.max(alive,0.001));pl.uni.uAlpha.value=pa*alive;pl.ring.material.opacity=pa*alive*0.13;pl.ring.scale.setScalar(pl.r/pl.orbit);}
 starUniforms.uTime.value=t;stars.rotation.y=t*0.002;const IGNITE_P=0.388;if(lastRawFlash<IGNITE_P&&pRaw>=IGNITE_P)flashT=1;else if(lastRawFlash>IGNITE_P&&pRaw<=IGNITE_P)flashT=Math.max(flashT,0.45);lastRawFlash=pRaw;flashT=Math.max(0,flashT-dt*(flashT>0.6?0.9:1.6));flashEl.style.opacity=(flashT*flashT*0.95).toFixed(3);const bhF=T.bhOp(p);bh.visible=bhF>0.01;if(bh.visible){bhUni.uTime.value=t;bhUni.uFade.value=bhF;bhUni.uCamPos.value.copy(camera.position);bhUni.uExpo.value=clamp(camera.position.distanceTo(BH_POS)/80,0.42,1);bh.quaternion.copy(camera.quaternion);}
-bloom.strength=T.bloomS(p)+Math.min(scrollVel*1.2,0.35);updateHUD(p);updateSections(pRaw);composer.render();}
+shockPulse=Math.max(0,shockPulse-dt*1.4);bloom.strength=T.bloomS(p)+Math.min(scrollVel*1.2,0.35)+shockPulse;updateHUD(p);updateSections(pRaw);composer.render();}
 addEventListener('resize',()=>{applyViewport();renderer.setSize(viewW(),innerHeight);composer.setSize(viewW(),innerHeight);measureVh();readScroll();});const MUSIC_SRC='bgm/abyss_bloom.mp3';const MUSIC_VOL=0.55;const FADE_IN=5;const FADE_OUT=0.8;const soundBtn=document.getElementById('sound');let music=null,musicOn=false,musicGain=0,fadeRaf=0;function fadeTo(target,seconds){cancelAnimationFrame(fadeRaf);const from=musicGain,t0=performance.now();(function tick(now){const k=Math.min((now-t0)/(seconds*1000),1);musicGain=from+(target-from)*k;music.volume=musicGain*MUSIC_VOL;if(k<1)fadeRaf=requestAnimationFrame(tick);else if(target===0)music.pause();})(t0);}
 function setSoundUI(on){soundBtn.setAttribute('aria-pressed',String(on));soundBtn.textContent=on?'SOUND ON':'SOUND OFF';}
 let soundResumed=false;function toggleSound(){soundResumed=true;if(!music){music=new Audio(MUSIC_SRC);music.loop=true;music.volume=0;music.addEventListener('error',()=>{console.warn(`music: could not load ${MUSIC_SRC}`);musicOn=false;setSoundUI(false);});}
