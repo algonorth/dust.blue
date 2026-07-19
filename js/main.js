@@ -1105,7 +1105,7 @@ addEventListener('resize', () => {
 /* browsers only allow audible playback after a user gesture, and scrolling
    doesn't count — so the toggle click is the one place audio may start */
 const MUSIC_SRC = 'bgm/abyss_bloom.mp3';
-const MUSIC_VOL = 0.55; // ceiling — the track never plays louder than this
+const MUSIC_VOL = 1.0; // ceiling — the track never plays louder than this
 const FADE_IN = 5;      // seconds; a slow bloom, like everything here
 const FADE_OUT = 0.8;   // mute should feel immediate, but not click
 
