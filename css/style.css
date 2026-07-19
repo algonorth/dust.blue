@@ -37,7 +37,12 @@
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
-html { scroll-behavior: auto; }
+/* the chapter scrims (.inner::before, inset -34% -40%) intentionally bleed
+   past the viewport; clip the x-axis at the root or mobile browsers grow a
+   sideways scrollbar. body's overflow-x alone can't do it — #copy is
+   absolutely positioned against the viewport, not the body scroller.
+   (clip > hidden: no scroll container is created; hidden is the fallback) */
+html { scroll-behavior: auto; overflow-x: hidden; overflow-x: clip; }
 
 body {
   background: var(--void);
