@@ -19,4 +19,4 @@ Minify files before deployment within virtual environment:
 	
 TODO:
 Maybe make it more cinematic with streaking particles during transitions that the camera follows for increased epicness? (Interest curve caution?)
-Black hole still isn't perfect.
+

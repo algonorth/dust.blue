@@ -118,8 +118,8 @@ const dustGeo = new THREE.BufferGeometry();
 
     // — accretion disk target: power-law radius + two loose spiral arms
     const rr = 1.6 + 30 * Math.pow(Math.random(), 1.6);
-    const arm = Math.random() < 0.62 ? (Math.random() < 0.5 ? 0 : Math.PI) : Math.random() * Math.PI * 2;
-    const ang = arm + rr * 0.16 + (Math.random() - 0.5) * 1.1;
+    const arm = Math.random() < 0.62 ? (Math.random() < 0.5 ? 0 : Math.PI) : Math.random() * Math.PI * 2; // const arm = Math.random() < 0.62 ? (Math.random() < 0.5 ? 0 : Math.PI) : Math.random() * Math.PI * 2;
+    const ang = arm + rr * 0.16 + (Math.random() - 0.5) * 1.1; // const ang = arm + rr * 0.16 + (Math.random() - 0.5) * 1.1;
     disk[i * 3] = Math.cos(ang) * rr;
     disk[i * 3 + 1] = (Math.random() - 0.5) * (0.4 + rr * 0.09) * (Math.random() < 0.08 ? 4 : 1);
     disk[i * 3 + 2] = Math.sin(ang) * rr;
@@ -255,7 +255,7 @@ const dustMat = new THREE.ShaderMaterial({
         float tproj = dot(toP, nBH);
         vec3 perp = toP - nBH * tproj;
         float bimp = max(length(perp), 0.001);
-        float behind = smoothstep(0.0, 36.0, tproj - dBH); // 26.0 is how quickly the climb starts. 
+        float behind = smoothstep(-10.0, 36.0, tproj - dBH); // 36.0 is how quickly the slope climb starts. 
         float eR2 = 230.0 * behind * uWBH; // 230.0 is the height of the climb // Einstein radius^2, world units^2
         float bLens = 0.5 * (bimp + sqrt(bimp * bimp + 4.0 * eR2));
         pos = cameraPosition + nBH * tproj + perp * (bLens / bimp);
