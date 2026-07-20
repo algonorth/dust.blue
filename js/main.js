@@ -1118,7 +1118,7 @@ function fadeTo(target, seconds) {
   (function tick(now) {
     const k = Math.min((now - t0) / (seconds * 1000), 1);
     musicGain = from + (target - from) * k;
-    music.volume = musicGain * MUSIC_VOL;
+	music.volume = clamp(musicGain * MUSIC_VOL, 0, 1);
     if (k < 1) fadeRaf = requestAnimationFrame(tick);
     else if (target === 0) music.pause();
   })(t0);
